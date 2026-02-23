@@ -20,7 +20,7 @@ const Testimonies = () => {
   const [currentPage, setCurrentPage] = useState(1);
 
   const filteredTestimonies = useMemo(() => {
-    let result = [...testimoniesData];
+    let result = testimoniesData.filter((t) => t.status === "approved");
 
     // Filter by search query
     if (searchQuery.trim()) {
@@ -123,7 +123,7 @@ const Testimonies = () => {
                         snippet={testimony.snippet}
                         contributor={testimony.contributor}
                         category={testimony.category}
-                        mediaType={testimony.mediaType}
+                        mediaType={testimony.mediaType === "pdf" ? undefined : testimony.mediaType}
                       />
                     ))}
                   </div>
