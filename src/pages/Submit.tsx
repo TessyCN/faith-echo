@@ -57,6 +57,15 @@ const Submit = () => {
     e.preventDefault();
     
     // Basic validation
+    if (!isAnonymous && !formData.name.trim()) {
+      toast({
+        title: "Name required",
+        description: "Please enter your name or choose to submit anonymously.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     if (!formData.title.trim()) {
       toast({
         title: "Title required",
@@ -126,7 +135,7 @@ const Submit = () => {
                 <div className="flex items-center justify-between">
                   <Label htmlFor="name" className="text-base font-medium">
                     Your Name
-                    <span className="text-muted-foreground font-normal ml-1">(Optional)</span>
+                    {!isAnonymous && <span className="text-destructive ml-1">*</span>}
                   </Label>
                   <div className="flex items-center gap-2">
                     <Label htmlFor="anonymous" className="text-sm text-muted-foreground cursor-pointer">
@@ -154,6 +163,7 @@ const Submit = () => {
                     disabled={isAnonymous}
                     className="pl-10"
                     maxLength={100}
+                    required={!isAnonymous}
                   />
                 </div>
               </div>
