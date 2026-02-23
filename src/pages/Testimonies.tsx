@@ -8,11 +8,16 @@ import SortSelect, { SortOption } from "@/components/SortSelect";
 import TestimonyArchiveCard from "@/components/TestimonyArchiveCard";
 import { TestimonyCategory } from "@/components/TestimonyCard";
 import { testimoniesData } from "@/data/testimonies";
+import { Button } from "@/components/ui/button";
+import { ChevronLeft, ChevronRight } from "lucide-react";
+
+const ITEMS_PER_PAGE = 9;
 
 const Testimonies = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<TestimonyCategory | "All">("All");
   const [sortOption, setSortOption] = useState<SortOption>("recent");
+  const [currentPage, setCurrentPage] = useState(1);
 
   const filteredTestimonies = useMemo(() => {
     let result = [...testimoniesData];
@@ -42,6 +47,18 @@ const Testimonies = () => {
 
     return result;
   }, [searchQuery, selectedCategory, sortOption]);
+
+  // Reset page when filters change
+  const totalPages = Math.ceil(filteredTestimonies.length / ITEMS_PER_PAGE);
+  const paginatedTestimonies = useMemo(() => {
+    const start = (currentPage - 1) * ITEMS_PER_PAGE;
+    return filteredTestimonies.slice(start, start + ITEMS_PER_PAGE);
+  }, [filteredTestimonies, currentPage]);
+
+  // Reset to page 1 when filters change
+  const handleSearchChange = (value: string) => { setSearchQuery(value); setCurrentPage(1); };
+  const handleCategoryChange = (value: TestimonyCategory | "All") => { setSelectedCategory(value); setCurrentPage(1); };
+  const handleSortChange = (value: SortOption) => { setSortOption(value); setCurrentPage(1); };
 
   return (
     <>
@@ -79,15 +96,15 @@ const Testimonies = () => {
           <section className="py-8 border-b border-border bg-muted/30">
             <div className="container space-y-4">
               <div className="flex flex-col md:flex-row gap-4 items-center justify-center">
-                <SearchBar value={searchQuery} onChange={setSearchQuery} />
+                <SearchBar value={searchQuery} onChange={handleSearchChange} />
               </div>
 
               <div className="flex flex-col sm:flex-row gap-4 items-center justify-between">
                 <CategoryFilter
                   selectedCategory={selectedCategory}
-                  onCategoryChange={setSelectedCategory}
+                  onCategoryChange={handleCategoryChange}
                 />
-                <SortSelect value={sortOption} onChange={setSortOption} />
+                <SortSelect value={sortOption} onChange={handleSortChange} />
               </div>
             </div>
           </section>
@@ -95,20 +112,65 @@ const Testimonies = () => {
           {/* Testimonies Grid */}
           <section className="py-12 md:py-16">
             <div className="container">
-              {filteredTestimonies.length > 0 ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {filteredTestimonies.map((testimony) => (
-                    <TestimonyArchiveCard
-                      key={testimony.id}
-                      id={testimony.id}
-                      title={testimony.title}
-                      snippet={testimony.snippet}
-                      contributor={testimony.contributor}
-                      category={testimony.category}
-                      mediaType={testimony.mediaType}
-                    />
-                  ))}
-                </div>
+              {paginatedTestimonies.length > 0 ? (
+                <>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {paginatedTestimonies.map((testimony) => (
+                      <TestimonyArchiveCard
+                        key={testimony.id}
+                        id={testimony.id}
+                        title={testimony.title}
+                        snippet={testimony.snippet}
+                        contributor={testimony.contributor}
+                        category={testimony.category}
+                        mediaType={testimony.mediaType}
+                      />
+                    ))}
+                  </div>
+
+                  {/* Pagination */}
+                  {totalPages > 1 && (
+                    <div className="flex items-center justify-center gap-2 mt-10">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                        disabled={currentPage === 1}
+                        className="gap-1"
+                      >
+                        <ChevronLeft className="h-4 w-4" />
+                        Previous
+                      </Button>
+                      <div className="flex items-center gap-1">
+                        {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                          <Button
+                            key={page}
+                            variant={page === currentPage ? "default" : "outline"}
+                            size="sm"
+                            onClick={() => setCurrentPage(page)}
+                            className="w-9 h-9 p-0"
+                          >
+                            {page}
+                          </Button>
+                        ))}
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                        disabled={currentPage === totalPages}
+                        className="gap-1"
+                      >
+                        Next
+                        <ChevronRight className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  )}
+
+                  <p className="text-center text-sm text-muted-foreground mt-4">
+                    Showing {(currentPage - 1) * ITEMS_PER_PAGE + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, filteredTestimonies.length)} of {filteredTestimonies.length} testimonies
+                  </p>
+                </>
               ) : (
                 <div className="text-center py-12">
                   <p className="text-muted-foreground text-lg">
@@ -118,6 +180,7 @@ const Testimonies = () => {
                     onClick={() => {
                       setSearchQuery("");
                       setSelectedCategory("All");
+                      setCurrentPage(1);
                     }}
                     className="mt-4 text-primary hover:underline"
                   >
