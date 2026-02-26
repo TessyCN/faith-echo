@@ -69,22 +69,23 @@ const TestimonyDetail = () => {
         <main className="flex-1">
           <article className="py-12 md:py-16">
             <div className="container max-w-3xl">
-              {/* Back Button */}
-              <Link
-                to="/testimonies"
-                className="inline-flex items-center gap-2 text-muted-foreground hover:text-primary transition-colors mb-8"
-              >
-                <ArrowLeft className="h-4 w-4" />
-                <span>Back to Testimonies</span>
-              </Link>
+              {/* Back Button & Category */}
+              <div className="flex items-center justify-between mb-8">
+                <Link
+                  to="/testimonies"
+                  className="inline-flex items-center gap-2 text-muted-foreground hover:text-primary transition-colors"
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                  <span>Back to Testimonies</span>
+                </Link>
 
-              {/* Category Badge */}
-              <Badge
-                variant="outline"
-                className={`mb-4 ${categoryStyles[testimony.category]}`}
-              >
-                {testimony.category}
-              </Badge>
+                <Badge
+                  variant="outline"
+                  className={categoryStyles[testimony.category]}
+                >
+                  {testimony.category}
+                </Badge>
+              </div>
 
               {/* Title */}
               <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold text-foreground mb-4">
