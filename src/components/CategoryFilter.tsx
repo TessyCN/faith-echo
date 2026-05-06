@@ -1,43 +1,28 @@
-import { TestimonyCategory } from "@/components/TestimonyCard";
-import { Button } from "@/components/ui/button";
 
-interface CategoryFilterProps {
-  selectedCategory: TestimonyCategory | "All";
-  onCategoryChange: (category: TestimonyCategory | "All") => void;
+import { Button } from "@/components/ui/button";
+import { TestimonyCategory } from "@/types";
+
+interface CategoryProps {
+category: TestimonyCategory [];
+filterByCategory: (category: TestimonyCategory) => void;
+selectedCategory: string;
 }
 
-const categories: (TestimonyCategory | "All")[] = [
-  "All",
-  "Healing",
-  "Provision",
-  "Deliverance",
-  "Breakthrough",
-];
 
-const categoryColors: Record<TestimonyCategory | "All", string> = {
-  All: "bg-primary text-primary-foreground hover:bg-primary/90",
-  Healing: "bg-healing text-white hover:bg-healing/90",
-  Provision: "bg-provision text-white hover:bg-provision/90",
-  Deliverance: "bg-deliverance text-white hover:bg-deliverance/90",
-  Breakthrough: "bg-breakthrough text-white hover:bg-breakthrough/90",
-};
-
-const CategoryFilter = ({ selectedCategory, onCategoryChange }: CategoryFilterProps) => {
+const CategoryFilter = ({filterByCategory, category, selectedCategory}: CategoryProps) => {
   return (
     <div className="flex flex-wrap gap-2">
-      {categories.map((category) => (
+      {category && category?.map((category) => (
         <Button
-          key={category}
-          variant={selectedCategory === category ? "default" : "outline"}
+          key={category.id}
+          // variant={selectedCategory === category ? "default" : "outline"}
           size="sm"
-          onClick={() => onCategoryChange(category)}
+          onClick={() => filterByCategory(category)}
           className={
-            selectedCategory === category
-              ? categoryColors[category]
-              : "hover:bg-muted"
+            `${selectedCategory ===  category.slug ? "bg-primary/90 text-primary-foreground hover:bg-primary/90" : "bg-white text-primary border border-primary hover:bg-secondary/90"}`
           }
         >
-          {category}
+          {category.name}
         </Button>
       ))}
     </div>

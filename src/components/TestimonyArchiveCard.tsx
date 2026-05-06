@@ -2,9 +2,10 @@ import { Link } from "react-router-dom";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Image, Video, Music, Share2 } from "lucide-react";
-import { TestimonyCategory } from "@/components/TestimonyCard";
 import SocialShareButtons from "@/components/SocialShareButtons";
 import { useState } from "react";
+import { TestimonyCategory } from "@/types";
+import { getCategoryStyle } from "./TestimonyCard";
 
 interface TestimonyArchiveCardProps {
   id: string;
@@ -12,15 +13,16 @@ interface TestimonyArchiveCardProps {
   snippet: string;
   contributor: string;
   category: TestimonyCategory;
+  index: number;
   mediaType?: "image" | "video" | "audio";
 }
 
-const categoryStyles: Record<TestimonyCategory, string> = {
-  Healing: "bg-healing/10 text-healing border-healing/20",
-  Provision: "bg-provision/10 text-provision border-provision/20",
-  Deliverance: "bg-deliverance/10 text-deliverance border-deliverance/20",
-  Breakthrough: "bg-breakthrough/10 text-breakthrough border-breakthrough/20",
-};
+// const categoryStyles: Record<TestimonyCategory, string> = {
+//   Healing: "bg-healing/10 text-healing border-healing/20",
+//   Provision: "bg-provision/10 text-provision border-provision/20",
+//   Deliverance: "bg-deliverance/10 text-deliverance border-deliverance/20",
+//   Breakthrough: "bg-breakthrough/10 text-breakthrough border-breakthrough/20",
+// };
 
 const mediaIcons = {
   image: Image,
@@ -35,6 +37,7 @@ const TestimonyArchiveCard = ({
   contributor,
   category,
   mediaType,
+  index
 }: TestimonyArchiveCardProps) => {
   const [showShare, setShowShare] = useState(false);
   const MediaIcon = mediaType ? mediaIcons[mediaType] : null;
@@ -55,9 +58,9 @@ const TestimonyArchiveCard = ({
         <div className="flex items-start justify-between gap-2">
           <Badge
             variant="outline"
-            className={`w-fit text-xs font-medium ${categoryStyles[category]}`}
+            className={`w-fit text-xs font-medium ${getCategoryStyle([category])}`}
           >
-            {category}
+            {category?.name}
           </Badge>
           <button
             onClick={(e) => {

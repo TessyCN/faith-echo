@@ -6,59 +6,46 @@ import SearchBar from "@/components/SearchBar";
 import CategoryFilter from "@/components/CategoryFilter";
 import SortSelect, { SortOption } from "@/components/SortSelect";
 import TestimonyArchiveCard from "@/components/TestimonyArchiveCard";
-import { TestimonyCategory } from "@/components/TestimonyCard";
-import { testimoniesData } from "@/data/testimonies";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { useGetCategories, useGetPublishedTestimonies } from "@/services/testimonies.service";
+import { SkeletonTestimonyLoader } from "@/components/TestimonyLoaderSkeleton";
+import { useDebounce } from "@/hooks/useDebounce";
 
 const ITEMS_PER_PAGE = 9;
 
 const Testimonies = () => {
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState<TestimonyCategory | "All">("All");
+  const [selectedCategory, setSelectedCategory] = useState<any | "All">("All");
   const [sortOption, setSortOption] = useState<SortOption>("recent");
   const [currentPage, setCurrentPage] = useState(1);
+  const [categorySlug, setCategorySlug] = useState<string>("");
 
-  const filteredTestimonies = useMemo(() => {
-    let result = testimoniesData.filter((t) => t.status === "approved");
 
-    // Filter by search query
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
-      result = result.filter(
-        (t) =>
-          t.title.toLowerCase().includes(query) ||
-          t.snippet.toLowerCase().includes(query) ||
-          t.contributor.toLowerCase().includes(query)
-      );
-    }
 
-    // Filter by category
-    if (selectedCategory !== "All") {
-      result = result.filter((t) => t.category === selectedCategory);
-    }
 
-    // Sort
-    if (sortOption === "recent") {
-      result.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
-    } else if (sortOption === "views") {
-      result.sort((a, b) => b.views - a.views);
-    }
+  const debounceSearchQuery = useDebounce(searchQuery, 2000)
 
-    return result;
-  }, [searchQuery, selectedCategory, sortOption]);
 
-  // Reset page when filters change
-  const totalPages = Math.ceil(filteredTestimonies.length / ITEMS_PER_PAGE);
-  const paginatedTestimonies = useMemo(() => {
-    const start = (currentPage - 1) * ITEMS_PER_PAGE;
-    return filteredTestimonies.slice(start, start + ITEMS_PER_PAGE);
-  }, [filteredTestimonies, currentPage]);
 
   // Reset to page 1 when filters change
-  const handleSearchChange = (value: string) => { setSearchQuery(value); setCurrentPage(1); };
-  const handleCategoryChange = (value: TestimonyCategory | "All") => { setSelectedCategory(value); setCurrentPage(1); };
+  const handleSearchChange = (value: string) => {
+    setSearchQuery(value);
+    setCurrentPage(1);
+  };
+
+  const handleCategoryChange = (value: any | { name: string, id: number, nameSlug: string }) => { setCategorySlug(value.name); setCurrentPage(1); setSelectedCategory(value.slug) };
   const handleSortChange = (value: SortOption) => { setSortOption(value); setCurrentPage(1); };
+
+  const testimonies = useGetPublishedTestimonies(
+    {
+      search: debounceSearchQuery,
+      categorySlug,
+      page: currentPage,
+      limit: ITEMS_PER_PAGE,
+    }
+  );
+  const categories = useGetCategories();
 
   return (
     <>
@@ -66,9 +53,9 @@ const Testimonies = () => {
         <title>Testimonies Archive | Grace Testimonies</title>
         <meta
           name="description"
-          content="Browse inspiring stories of faith, healing, provision, deliverance, and breakthrough from our church community."
+          content="Browse inspiring stories of faith, healing, provision, deliverance, and breakthrough from our church community and around the world"
         />
-        <meta property="og:title" content="Testimonies Archive | Grace Testimonies" />
+        <meta property="og:title" content="Testimonies Archive | FFI Testimonies" />
         <meta
           property="og:description"
           content="Browse inspiring stories of faith, healing, provision, deliverance, and breakthrough from our church community."
@@ -100,10 +87,14 @@ const Testimonies = () => {
               </div>
 
               <div className="flex flex-col sm:flex-row gap-4 items-center justify-between">
-                <CategoryFilter
-                  selectedCategory={selectedCategory}
-                  onCategoryChange={handleCategoryChange}
-                />
+                <div className="flex items-center justify-center gap-2">
+                  <Button className={selectedCategory === 'All' ? "bg-primary/90 text-primary-foreground hover:bg-primary/90" : "bg-white text-primary border border-primary hover:bg-secondary/90"} onClick={() => setSelectedCategory("All")}>All</Button>
+                  <CategoryFilter
+                    selectedCategory={selectedCategory}
+                    category={categories.data}
+                    filterByCategory={handleCategoryChange}
+                  />
+                </div>
                 <SortSelect value={sortOption} onChange={handleSortChange} />
               </div>
             </div>
@@ -112,24 +103,32 @@ const Testimonies = () => {
           {/* Testimonies Grid */}
           <section className="py-12 md:py-16">
             <div className="container">
-              {paginatedTestimonies.length > 0 ? (
+
+              {
+                testimonies.isPending && <SkeletonTestimonyLoader />
+              }
+              {testimonies.data?.data ? (
                 <>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {paginatedTestimonies.map((testimony) => (
+                    {testimonies.data?.data ? testimonies.data?.data?.map((testimony, index) => (
                       <TestimonyArchiveCard
                         key={testimony.id}
                         id={testimony.id}
                         title={testimony.title}
-                        snippet={testimony.snippet}
-                        contributor={testimony.contributor}
+                        snippet={testimony.content}
+                        contributor={testimony.authorName}
                         category={testimony.category}
                         mediaType={testimony.mediaType === "pdf" ? undefined : testimony.mediaType}
+                        index={index}
                       />
-                    ))}
+                    )) : <div className="flex mx-auto w-full flex-col items-center justify-center">
+                      <h2 className="text-center text-lg font-medium text-foreground mt-16">No testimonies found</h2>
+                      <p className="text-center text-muted-foreground mt-4">Check back later for inspiring stories of faith and breakthrough</p>
+                    </div>}
                   </div>
 
                   {/* Pagination */}
-                  {totalPages > 1 && (
+                  {currentPage < testimonies.data?.meta?.totalPages && (
                     <div className="flex items-center justify-center gap-2 mt-10">
                       <Button
                         variant="outline"
@@ -142,23 +141,23 @@ const Testimonies = () => {
                         Previous
                       </Button>
                       <div className="flex items-center gap-1">
-                        {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-                          <Button
-                            key={page}
-                            variant={page === currentPage ? "default" : "outline"}
-                            size="sm"
-                            onClick={() => setCurrentPage(page)}
-                            className="w-9 h-9 p-0"
-                          >
-                            {page}
-                          </Button>
-                        ))}
+
+
+                        <Button
+                          key={currentPage}
+                          variant={currentPage === currentPage ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => setCurrentPage(currentPage)}
+                          className="w-9 h-9 p-0"
+                        >
+                          {currentPage}
+                        </Button>
                       </div>
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                        disabled={currentPage === totalPages}
+                        onClick={() => setCurrentPage((p) => p + 1)}
+                        disabled={currentPage === testimonies.data?.meta?.totalPages}
                         className="gap-1"
                       >
                         Next
@@ -168,7 +167,7 @@ const Testimonies = () => {
                   )}
 
                   <p className="text-center text-sm text-muted-foreground mt-4">
-                    Showing {(currentPage - 1) * ITEMS_PER_PAGE + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, filteredTestimonies.length)} of {filteredTestimonies.length} testimonies
+                    Showing {(currentPage - 1) * ITEMS_PER_PAGE + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, testimonies.data?.meta?.total)} of {testimonies.data?.meta?.total} testimonies
                   </p>
                 </>
               ) : (
@@ -179,7 +178,7 @@ const Testimonies = () => {
                   <button
                     onClick={() => {
                       setSearchQuery("");
-                      setSelectedCategory("All");
+                      setSelectedCategory("");
                       setCurrentPage(1);
                     }}
                     className="mt-4 text-primary hover:underline"

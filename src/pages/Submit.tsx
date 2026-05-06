@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/select";
 import { Upload, Send, User, FileText, Heart } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useCreaateTestimony, useGetCategories } from "@/services/testimonies.service";
 
 const categories = [
   { value: "healing", label: "Healing" },
@@ -24,40 +25,48 @@ const categories = [
   { value: "breakthrough", label: "Breakthrough" },
 ];
 
+
+
 const Submit = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [isAnonymous, setIsAnonymous] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
-    name: "",
+    authorName: "",
     title: "",
-    testimony: "",
-    category: "",
-    file: null as File | null,
-  });
+    content: "",
+    categoryId: 0,
+    authorEmail: ""
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      // Validate file size (max 10MB)
-      if (file.size > 10 * 1024 * 1024) {
-        toast({
-          title: "File too large",
-          description: "Please select a file smaller than 10MB.",
-          variant: "destructive",
-        });
-        return;
-      }
-      setFormData((prev) => ({ ...prev, file }));
-    }
-  };
+    // file: null as File | null,
+  });
+   const submitForm = useCreaateTestimony();
+   const allCategories = useGetCategories();
+
+  // const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  //   const file = e.target.files?.[0];
+  //   if (file) {
+  //     // Validate file size (max 10MB)
+  //     if (file.size > 10 * 1024 * 1024) {
+  //       toast({
+  //         title: "File too large",
+  //         description: "Please select a file smaller than 10MB.",
+  //         variant: "destructive",
+  //       });
+  //       return;
+  //     }
+  //     setFormData((prev) => ({ ...prev, file }));
+  //   }
+  // };
+
+  console.log("All Categories", allCategories.data);
+
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     // Basic validation
-    if (!isAnonymous && !formData.name.trim()) {
+    if (!isAnonymous && !formData.authorName.trim()) {
       toast({
         title: "Name required",
         description: "Please enter your name or choose to submit anonymously.",
@@ -75,7 +84,7 @@ const Submit = () => {
       return;
     }
     
-    if (!formData.testimony.trim()) {
+    if (!formData.content.trim()) {
       toast({
         title: "Testimony required",
         description: "Please share your testimony story.",
@@ -84,7 +93,7 @@ const Submit = () => {
       return;
     }
     
-    if (!formData.category) {
+    if (!formData.categoryId) {
       toast({
         title: "Category required",
         description: "Please select a category for your testimony.",
@@ -92,19 +101,49 @@ const Submit = () => {
       });
       return;
     }
-
-    setIsSubmitting(true);
-    
-    // Simulate submission (replace with actual API call)
-    setTimeout(() => {
+    if (!formData.authorEmail) {
+      toast({
+        title: "Email is required",
+        description: "Please enter your email address.",
+        variant: "destructive",
+      });
+      return;
+    }
+    try{
+      submitForm.mutate(formData, {
+        onSuccess: () => {
       toast({
         title: "Testimony submitted!",
-        description: "Thank you for sharing. Your testimony will be reviewed shortly.",
+        description: "Thank you for sharing.",
       });
-      setIsSubmitting(false);
       navigate("/");
-    }, 1500);
+    },
+    onError: (error) => {
+      console.error(error);
+      toast({
+        title: "Failed to submit testimony",
+        variant: "destructive"
+      });
+    }
+      })
+    } catch(error){
+      console.log(error)
+      toast({
+        title: "Faild to submit testimony"
+      })
+    }
+    
+    // Simulate submission (replace with actual API call)
+    // setTimeout(() => {
+    //   toast({
+    //     title: "Testimony submitted!",
+    //     description: "Thank you for sharing. Your testimony will be reviewed shortly.",
+    //   });
+    //   setIsSubmitting(false);
+    //   navigate("/");
+    // }, 1500);
   };
+ 
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
@@ -147,7 +186,7 @@ const Submit = () => {
                       onCheckedChange={(checked) => {
                         setIsAnonymous(checked);
                         if (checked) {
-                          setFormData((prev) => ({ ...prev, name: "" }));
+                          setFormData((prev) => ({ ...prev, authorName: "" }));
                         }
                       }}
                     />
@@ -158,11 +197,24 @@ const Submit = () => {
                   <Input
                     id="name"
                     placeholder={isAnonymous ? "Anonymous" : "Enter your name"}
-                    value={formData.name}
-                    onChange={(e) => setFormData((prev) => ({ ...prev, name: e.target.value }))}
+                    value={formData.authorName}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, authorName: e.target.value }))}
                     disabled={isAnonymous}
                     className="pl-10"
-                    maxLength={100}
+                    maxLength={40}
+                    required={!isAnonymous}
+                  />
+                </div>
+                <div className="relative">
+                  <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    id="email"
+                    placeholder={ "Enter your email"}
+                    value={formData.authorEmail}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, authorEmail: e.target.value }))}
+                    disabled={isAnonymous}
+                    className="pl-10"
+                    maxLength={40}
                     required={!isAnonymous}
                   />
                 </div>
@@ -190,26 +242,26 @@ const Submit = () => {
 
               {/* Testimony Text Area */}
               <div className="space-y-3">
-                <Label htmlFor="testimony" className="text-base font-medium">
+                <Label htmlFor="content" className="text-base font-medium">
                   Your Testimony
                   <span className="text-destructive ml-1">*</span>
                 </Label>
                 <Textarea
-                  id="testimony"
+                  id="content"
                   placeholder="Share your story of God's faithfulness in your life..."
-                  value={formData.testimony}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, testimony: e.target.value }))}
+                  value={formData.content}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, content: e.target.value }))}
                   className="min-h-[200px] resize-y"
                   maxLength={5000}
                   required
                 />
                 <p className="text-xs text-muted-foreground text-right">
-                  {formData.testimony.length}/5000 characters
+                  {formData.content.length}/5000 characters
                 </p>
               </div>
 
               {/* File Upload */}
-              <div className="space-y-3">
+              {/* <div className="space-y-3">
                 <Label className="text-base font-medium">
                   Upload Evidence
                   <span className="text-muted-foreground font-normal ml-1">(Optional)</span>
@@ -243,7 +295,7 @@ const Submit = () => {
                     onChange={handleFileChange}
                   />
                 </label>
-              </div>
+              </div> */}
 
               {/* Category Dropdown */}
               <div className="space-y-3">
@@ -252,17 +304,17 @@ const Submit = () => {
                   <span className="text-destructive ml-1">*</span>
                 </Label>
                 <Select
-                  value={formData.category}
-                  onValueChange={(value) => setFormData((prev) => ({ ...prev, category: value }))}
+                  value={formData.categoryId ? formData.categoryId.toString() : ""}
+                  onValueChange={(value) => setFormData((prev) => ({ ...prev, categoryId: Number(value) }))}
                   required
                 >
                   <SelectTrigger id="category" className="w-full">
                     <SelectValue placeholder="Select a category" />
                   </SelectTrigger>
                   <SelectContent className="bg-background z-50">
-                    {categories.map((cat) => (
-                      <SelectItem key={cat.value} value={cat.value}>
-                        {cat.label}
+                    {allCategories?.data?.map((cat: any) => (
+                      <SelectItem key={cat.id} value={cat.id.toString()}>
+                        {cat.name}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -274,9 +326,9 @@ const Submit = () => {
                 type="submit"
                 size="lg"
                 className="w-full gap-2"
-                disabled={isSubmitting}
+                disabled={submitForm.isPending}
               >
-                {isSubmitting ? (
+                {submitForm.isPending ? (
                   <>
                     <span className="animate-spin">⏳</span>
                     Submitting...

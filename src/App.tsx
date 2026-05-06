@@ -11,28 +11,38 @@ import TestimonyDetail from "./pages/TestimonyDetail";
 import AdminLogin from "./pages/AdminLogin";
 import AdminDashboard from "./pages/AdminDashboard";
 import NotFound from "./pages/NotFound";
+import ProtectedRoute from "./lib/ProtectedRoute";
 
 const queryClient = new QueryClient();
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
-      <AdminAuthProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
+      <BrowserRouter>
+        <AdminAuthProvider>
+          <Toaster />
+          <Sonner />
+
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/submit" element={<Submit />} />
             <Route path="/testimonies" element={<Testimonies />} />
             <Route path="/testimony/:id" element={<TestimonyDetail />} />
             <Route path="/admin" element={<AdminLogin />} />
-            <Route path="/admin/dashboard" element={<AdminDashboard />} />
-            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+
+            <Route
+              path="/admin/dashboard"
+              element={
+                <ProtectedRoute>
+                  <AdminDashboard />
+                </ProtectedRoute>
+              }
+            />
+
             <Route path="*" element={<NotFound />} />
           </Routes>
-        </BrowserRouter>
-      </AdminAuthProvider>
+        </AdminAuthProvider>
+      </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
 );

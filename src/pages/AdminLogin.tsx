@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Church, LogIn } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -6,39 +6,54 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAdminAuth } from "@/contexts/AdminAuthContext";
 import { useToast } from "@/hooks/use-toast";
+import { useLoginAdmin } from "@/services/auth.service";
 
 const AdminLogin = () => {
   const navigate = useNavigate();
-  const { login, isAuthenticated } = useAdminAuth();
+  const { login, isAuthenticated, isLoading, error } = useAdminAuth();
   const { toast } = useToast();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
 
-  // Redirect if already logged in
+useEffect(() => {
   if (isAuthenticated) {
-    navigate("/admin/dashboard", { replace: true });
-    return null;
+    navigate("/admin/dashboard", {
+      replace: true,
+    });
+  }
+}, [isAuthenticated, navigate]);
+
+const handleSubmit = async (
+  e: React.FormEvent
+) => {
+  e.preventDefault();
+
+  if (!email.trim() || !password.trim()) {
+    toast({
+      title: "Missing fields",
+      description:
+        "Please enter email and password.",
+      variant: "destructive",
+    });
+
+    return;
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const success = await login(email, password);
 
-    if (!email.trim() || !password.trim()) {
-      toast({ title: "Missing fields", description: "Please enter email and password.", variant: "destructive" });
-      return;
-    }
+  if (success) {
+    toast({
+      title: "Login successful",
+    });
 
-    setIsLoading(true);
-    const success = await login(email, password);
-    setIsLoading(false);
-
-    if (success) {
-      navigate("/admin/dashboard", { replace: true });
-    } else {
-      toast({ title: "Login failed", description: "Invalid email or password.", variant: "destructive" });
-    }
-  };
+    navigate("/admin/dashboard");
+  } else {
+    toast({
+      title: "Login failed",
+      variant: "destructive",
+    });
+  }
+};
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-muted/30 px-4">

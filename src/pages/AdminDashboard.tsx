@@ -1,9 +1,10 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   LayoutDashboard, Clock, CheckCircle2, XCircle, BarChart3, LogOut,
   Menu, X, Image, Video, Music, FileText, ChevronRight, Church,
-  ClipboardList, Edit3, TrendingUp, TrendingDown, Minus,
+  ClipboardList, Edit3, TrendingUp, TrendingDown, Minus, Plus,
+  Trash2, Save, X as XIcon, FolderPlus, Edit2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -16,19 +17,32 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+} from "@/components/ui/dialog";
 import { useAdminAuth } from "@/contexts/AdminAuthContext";
-import { testimoniesData, TestimonyData, TestimonyStatus } from "@/data/testimonies";
-import { TestimonyCategory } from "@/components/TestimonyCard";
-import { format, subDays, isAfter, isBefore, startOfDay, endOfDay } from "date-fns";
+import { format, subDays, isAfter, isBefore } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend,
 } from "recharts";
+import {
+  useGetDashboardStats,
+  useGetPendingTestimonies,
+  useGetApprovedTestimonies,
+  useGetRejectedTestimonies,
+  useGetCategories,
+  useCreateCategory,
+  useDeleteCategory,
+  useUpdateCategory,
+  useUpdateTestimonyStatus,
+  useUpdateTestimony,
+} from "@/services/testimonies.service";
 
 /* ─── Types ─── */
 
-type AdminView = "dashboard" | "pending" | "approved" | "rejected" | "analytics" | "audit" | "detail";
+type AdminView = "dashboard" | "pending" | "approved" | "rejected" | "analytics" | "audit" | "detail" | "categories";
 
 type AuditAction = "Approved" | "Rejected" | "Edited";
 
@@ -37,25 +51,93 @@ interface AuditEntry {
   testimonyTitle: string;
   testimonyId: string;
   action: AuditAction;
-  adminEmail: string;
   timestamp: Date;
   details?: string;
 }
 
+// Backend testimony type
+interface BackendTestimony {
+  id: number;
+  title: string;
+  content: string;
+  status: "PENDING" | "APPROVED" | "REJECTED";
+  createdAt: string;
+  updatedAt: string;
+  authorEmail: string;
+  authorName: string;
+  updatedByEmail: string | null;
+  isFeatured: boolean;
+  featuredAt: string | null;
+  views: number;
+  shared: number;
+  categoryId: number;
+  category: {
+    id: number;
+    name: string;
+    slug: string;
+  };
+  rejectionNote?: string;
+}
+
+// Category type
+interface Category {
+  id: number;
+  name: string;
+  slug: string;
+  description: string | null;
+  createdAt: string;
+  updatedAt: string;
+  _count?: {
+    testimonies: number;
+  };
+}
+
+// Frontend adapted testimony type
+interface AdaptedTestimony {
+  id: string;
+  title: string;
+  snippet: string;
+  fullStory: string;
+  contributor: string;
+  realName?: string;
+  isAnonymous?: boolean;
+  category: string;
+  categoryId: number;
+  mediaType?: "image" | "video" | "audio" | "pdf";
+  mediaThumbnail?: string;
+  views: number;
+  createdAt: Date;
+  status: "pending" | "approved" | "rejected";
+  rejectionNote?: string;
+}
+
 /* ─── Constants ─── */
 
-const categoryStyles: Record<TestimonyCategory, string> = {
-  Healing: "bg-healing/10 text-healing border-healing/20",
-  Provision: "bg-provision/10 text-provision border-provision/20",
-  Deliverance: "bg-deliverance/10 text-deliverance border-deliverance/20",
-  Breakthrough: "bg-breakthrough/10 text-breakthrough border-breakthrough/20",
+const getCategoryColor = (categoryName: string): string => {
+  const colors = [
+    "bg-healing/10 text-healing border-healing/20",
+    "bg-provision/10 text-provision border-provision/20",
+    "bg-deliverance/10 text-deliverance border-deliverance/20",
+    "bg-breakthrough/10 text-breakthrough border-breakthrough/20",
+    "bg-intimacy/10 text-intimacy border-intimacy/20",
+  ];
+  // Generate a consistent color based on category name
+  const index = categoryName.length % colors.length;
+  return colors[index];
 };
 
-const CATEGORY_COLORS: Record<TestimonyCategory, string> = {
-  Healing: "hsl(160, 60%, 45%)",
-  Provision: "hsl(35, 85%, 55%)",
-  Deliverance: "hsl(280, 50%, 55%)",
-  Breakthrough: "hsl(220, 65%, 50%)",
+const getChartColor = (categoryName: string, index: number): string => {
+  const colors = [
+    "hsl(160, 60%, 45%)",
+    "hsl(35, 85%, 55%)",
+    "hsl(280, 50%, 55%)",
+    "hsl(220, 65%, 50%)",
+    "hsl(320, 70%, 55%)",
+    "hsl(90, 60%, 45%)",
+    "hsl(10, 80%, 55%)",
+    "hsl(200, 70%, 50%)",
+  ];
+  return colors[index % colors.length];
 };
 
 const mediaIcons = { image: Image, video: Video, audio: Music, pdf: FileText };
@@ -65,29 +147,49 @@ const navItems: { key: AdminView; label: string; icon: typeof LayoutDashboard }[
   { key: "pending", label: "Pending", icon: Clock },
   { key: "approved", label: "Approved", icon: CheckCircle2 },
   { key: "rejected", label: "Rejected", icon: XCircle },
+  { key: "categories", label: "Categories", icon: FolderPlus },
   { key: "audit", label: "Audit Log", icon: ClipboardList },
   { key: "analytics", label: "Analytics", icon: BarChart3 },
 ];
-
-const categories: TestimonyCategory[] = ["Healing", "Provision", "Deliverance", "Breakthrough"];
 
 /* ─── Component ─── */
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
-  const { logout, isAuthenticated, adminEmail } = useAdminAuth();
+  const { logout, isAuthenticated } = useAdminAuth();
   const { toast } = useToast();
 
   const [currentView, setCurrentView] = useState<AdminView>("dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [selectedTestimony, setSelectedTestimony] = useState<TestimonyData | null>(null);
-  const [data, setData] = useState<TestimonyData[]>([...testimoniesData]);
+  const [selectedTestimony, setSelectedTestimony] = useState<AdaptedTestimony | null>(null);
   const [rejectionNote, setRejectionNote] = useState("");
+
+  // Category management state
+  const [categoryDialogOpen, setCategoryDialogOpen] = useState(false);
+  const [editingCategory, setEditingCategory] = useState<Category | null>(null);
+  const [categoryForm, setCategoryForm] = useState({ name: "", description: "" });
+  const [deleteCategoryDialog, setDeleteCategoryDialog] = useState<{ open: boolean; category: Category | null }>({ open: false, category: null });
 
   // Audit log
   const [auditLog, setAuditLog] = useState<AuditEntry[]>([]);
   const [auditActionFilter, setAuditActionFilter] = useState<string>("all");
   const [auditDaysFilter, setAuditDaysFilter] = useState<string>("all");
+
+  // Fetch data from backend
+  const dashboardStats = useGetDashboardStats();
+  const { data: pendingData, refetch: refetchPending } = useGetPendingTestimonies();
+  const { data: approvedData, refetch: refetchApproved } = useGetRejectedTestimonies();
+  const { data: rejectedData, refetch: refetchRejected } = useGetRejectedTestimonies();
+  const { data: categoriesData, refetch: refetchCategories } = useGetCategories();
+
+  // Category mutations
+  const createCategoryMutation = useCreateCategory();
+  const updateCategoryMutation = useUpdateCategory();
+  const deleteCategoryMutation = useDeleteCategory();
+
+  // Mutations for updating testimonies
+  const updateStatusMutation = useUpdateTestimonyStatus();
+  const updateTestimonyMutation = useUpdateTestimony();
 
   // Confirmation dialogs
   const [confirmDialog, setConfirmDialog] = useState<{
@@ -98,57 +200,107 @@ const AdminDashboard = () => {
 
   // Edit form
   const [editMode, setEditMode] = useState(false);
-  const [editForm, setEditForm] = useState({ title: "", category: "" as TestimonyCategory, fullStory: "" });
+  const [editForm, setEditForm] = useState({ title: "", categoryId: 0, categoryName: "", fullStory: "" });
+
+  // Convert backend data to frontend format
+  const adaptTestimony = (backendTestimony: BackendTestimony): AdaptedTestimony => {
+    const snippet = backendTestimony.content.length > 100
+      ? backendTestimony.content.substring(0, 100) + "..."
+      : backendTestimony.content;
+
+    let status: "pending" | "approved" | "rejected" = "pending";
+    if (backendTestimony.status === "APPROVED") status = "approved";
+    if (backendTestimony.status === "REJECTED") status = "rejected";
+
+    return {
+      id: backendTestimony.id.toString(),
+      title: backendTestimony.title,
+      snippet: snippet,
+      fullStory: backendTestimony.content,
+      contributor: backendTestimony.authorName,
+      realName: backendTestimony.authorName,
+      isAnonymous: false,
+      category: backendTestimony.category.name,
+      categoryId: backendTestimony.category.id,
+      views: backendTestimony.views,
+      createdAt: new Date(backendTestimony.createdAt),
+      status: status,
+      rejectionNote: backendTestimony.rejectionNote,
+    };
+  };
+
+  // Get adapted testimonies lists
+  const pendingTestimonies: AdaptedTestimony[] = useMemo(() => {
+    if (!pendingData?.data) return [];
+    return pendingData.data.map(adaptTestimony);
+  }, [pendingData]);
+
+  const approvedTestimonies: AdaptedTestimony[] = useMemo(() => {
+    if (!approvedData?.data) return [];
+    return approvedData.data.map(adaptTestimony);
+  }, [approvedData]);
+
+  const rejectedTestimonies: AdaptedTestimony[] = useMemo(() => {
+    if (!rejectedData?.data) return [];
+    return rejectedData.data.map(adaptTestimony);
+  }, [rejectedData]);
+
+  const categories: Category[] = useMemo(() => {
+    if (!categoriesData) return [];
+    return categoriesData;
+  }, [categoriesData]);
+
+
+
+
 
   const counts = useMemo(() => ({
-    pending: data.filter((t) => t.status === "pending").length,
-    approved: data.filter((t) => t.status === "approved").length,
-    rejected: data.filter((t) => t.status === "rejected").length,
-    total: data.length,
-  }), [data]);
+    pending: pendingTestimonies.length,
+    approved: approvedTestimonies.length,
+    rejected: rejectedData?.data.length,
+    total: dashboardStats.data?.totalTestimonies || (pendingTestimonies.length + approvedTestimonies.length + rejectedTestimonies.length),
+  }), [pendingTestimonies.length, approvedTestimonies.length, rejectedData?.data.length, dashboardStats.data?.totalTestimonies]);
+
+  // Combine all testimonies for analytics
+  const allTestimonies = useMemo(() => {
+    return [...pendingTestimonies, ...approvedTestimonies, ...rejectedTestimonies];
+  }, [pendingTestimonies, approvedTestimonies, rejectedTestimonies]);
 
   const categoryBreakdown = useMemo(() =>
     categories.map((cat) => ({
-      name: cat,
-      total: data.filter((t) => t.category === cat).length,
-      approved: data.filter((t) => t.category === cat && t.status === "approved").length,
-      pending: data.filter((t) => t.category === cat && t.status === "pending").length,
-      rejected: data.filter((t) => t.category === cat && t.status === "rejected").length,
-    })), [data]);
+      name: cat.name,
+      total: allTestimonies.filter((t) => t.categoryId === cat.id).length,
+      approved: allTestimonies.filter((t) => t.categoryId === cat.id && t.status === "approved").length,
+      pending: allTestimonies.filter((t) => t.categoryId === cat.id && t.status === "pending").length,
+      rejected: allTestimonies.filter((t) => t.categoryId === cat.id && t.status === "rejected").length,
+    })).filter((cat) => cat.total > 0), [allTestimonies, categories]);
 
   const pieData = useMemo(() =>
-    categories.map((cat) => ({
-      name: cat,
-      value: data.filter((t) => t.category === cat).length,
-      color: CATEGORY_COLORS[cat],
-    })).filter((d) => d.value > 0), [data]);
+    categories.map((cat, index) => ({
+      name: cat.name,
+      value: allTestimonies.filter((t) => t.categoryId === cat.id).length,
+      color: getChartColor(cat.name, index),
+    })).filter((d) => d.value > 0), [allTestimonies, categories]);
 
-  const filteredAuditLog = useMemo(() => {
-    let entries = [...auditLog];
-    if (auditActionFilter !== "all") entries = entries.filter((e) => e.action === auditActionFilter);
-    if (auditDaysFilter !== "all") {
-      const cutoff = startOfDay(subDays(new Date(), parseInt(auditDaysFilter)));
-      entries = entries.filter((e) => isAfter(e.timestamp, cutoff));
-    }
-    return entries;
-  }, [auditLog, auditActionFilter, auditDaysFilter]);
-
+    // console.log("Approved testimonies", approved.data?.data.length )
   const weeklyTrend = useMemo(() => {
     const now = new Date();
-    const thisWeek = data.filter((t) => isAfter(t.createdAt, subDays(now, 7))).length;
-    const lastWeek = data.filter((t) => isAfter(t.createdAt, subDays(now, 14)) && isBefore(t.createdAt, subDays(now, 7))).length;
+    const thisWeek = allTestimonies.filter((t) => isAfter(t.createdAt, subDays(now, 7))).length;
+    const lastWeek = allTestimonies.filter((t) => isAfter(t.createdAt, subDays(now, 14)) && isBefore(t.createdAt, subDays(now, 7))).length;
     const diff = thisWeek - lastWeek;
     return { thisWeek, lastWeek, diff, trend: diff > 0 ? "up" : diff < 0 ? "down" : "flat" as const };
-  }, [data]);
+  }, [allTestimonies]);
 
   // Redirect if not authenticated
+  useEffect(() => {
+    if (!isAuthenticated) {
+      navigate("/admin", { replace: true });
+    }
+  }, [isAuthenticated, navigate]);
+
   if (!isAuthenticated) {
-    navigate("/admin", { replace: true });
     return null;
   }
-
-  const filteredTestimonies = (status: TestimonyStatus) =>
-    data.filter((t) => t.status === status).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 
   const addAuditEntry = (testimonyId: string, title: string, action: AuditAction, details?: string) => {
     setAuditLog((prev) => [{
@@ -156,86 +308,227 @@ const AdminDashboard = () => {
       testimonyTitle: title,
       testimonyId,
       action,
-      adminEmail: adminEmail || "admin",
       timestamp: new Date(),
       details,
     }, ...prev]);
   };
 
-  const handleAction = (id: string, action: "approve" | "reject") => {
-    const testimony = data.find((t) => t.id === id);
-    setData((prev) =>
-      prev.map((t) =>
-        t.id === id
-          ? { ...t, status: (action === "approve" ? "approved" : "rejected") as TestimonyStatus, rejectionNote: action === "reject" ? rejectionNote : undefined }
-          : t
-      )
-    );
-    addAuditEntry(id, testimony?.title || "", action === "approve" ? "Approved" : "Rejected", action === "reject" ? rejectionNote : undefined);
-    toast({
-      title: action === "approve" ? "Testimony Approved" : "Testimony Rejected",
-      description: `The testimony has been ${action === "approve" ? "published" : "declined"}.`,
-    });
-    setRejectionNote("");
-    setSelectedTestimony(null);
-    setConfirmDialog({ open: false, type: "approve", testimonyId: "" });
-    setCurrentView(action === "approve" ? "approved" : "rejected");
-  };
-
-  const handleEdit = (id: string) => {
-    const testimony = data.find((t) => t.id === id);
+  const handleAction = async (id: string, action: "approve" | "reject") => {
+    const testimony = pendingTestimonies.find((t) => t.id === id);
     if (!testimony) return;
-    setData((prev) =>
-      prev.map((t) => t.id === id ? { ...t, title: editForm.title, category: editForm.category, fullStory: editForm.fullStory } : t)
-    );
-    addAuditEntry(id, editForm.title, "Edited", `Updated title, category, or content`);
-    toast({ title: "Testimony Updated", description: "Changes saved successfully." });
-    setEditMode(false);
-    setSelectedTestimony({ ...testimony, title: editForm.title, category: editForm.category, fullStory: editForm.fullStory });
-    setConfirmDialog({ open: false, type: "approve", testimonyId: "" });
+
+    const newStatus = action === "approve" ? "APPROVED" : "REJECTED";
+
+    try {
+      await updateStatusMutation.mutateAsync({
+        id: parseInt(id),
+        status: newStatus,
+        rejectionNote: action === "reject" ? rejectionNote : undefined
+      });
+
+      addAuditEntry(id, testimony.title, action === "approve" ? "Approved" : "Rejected", action === "reject" ? rejectionNote : undefined);
+
+      toast({
+        title: action === "approve" ? "Testimony Approved" : "Testimony Rejected",
+        description: `The testimony has been ${action === "approve" ? "published" : "declined"}.`,
+      });
+
+      setRejectionNote("");
+      setSelectedTestimony(null);
+      setConfirmDialog({ open: false, type: "approve", testimonyId: "" });
+
+      await refetchPending();
+      await refetchApproved();
+      await refetchRejected();
+
+      setCurrentView(action === "approve" ? "approved" : "rejected");
+    } catch (error) {
+      console.error("Error updating testimony status:", error);
+      toast({
+        title: "Error",
+        description: "Failed to update testimony status. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
-  const openDetail = (testimony: TestimonyData) => {
+  const handleEdit = async (id: string) => {
+    try {
+      await updateTestimonyMutation.mutateAsync({
+        id: parseInt(id),
+        title: editForm.title,
+        content: editForm.fullStory,
+        categoryId: editForm.categoryId
+      });
+
+      addAuditEntry(id, editForm.title, "Edited", `Updated title, category, or content`);
+
+      toast({
+        title: "Testimony Updated",
+        description: "Changes saved successfully."
+      });
+
+      setEditMode(false);
+
+      if (selectedTestimony) {
+        setSelectedTestimony({
+          ...selectedTestimony,
+          title: editForm.title,
+          category: editForm.categoryName,
+          categoryId: editForm.categoryId,
+          fullStory: editForm.fullStory,
+        });
+      }
+
+      setConfirmDialog({ open: false, type: "approve", testimonyId: "" });
+
+      await refetchPending();
+      await refetchApproved();
+      await refetchRejected();
+
+    } catch (error) {
+      console.error("Error updating testimony:", error);
+      toast({
+        title: "Error",
+        description: "Failed to update testimony. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Category management functions
+  const handleCreateCategory = async () => {
+    if (!categoryForm.name.trim()) {
+      toast({ title: "Error", description: "Category name is required", variant: "destructive" });
+      return;
+    }
+
+    try {
+      await createCategoryMutation.mutateAsync({
+        name: categoryForm.name,
+        description: categoryForm.description || undefined,
+        slug: categoryForm.name.toLowerCase().replace(/ /g, "")
+      });
+
+      toast({ title: "Success", description: "Category created successfully" });
+      setCategoryDialogOpen(false);
+      setCategoryForm({ name: "", description: "" });
+      await refetchCategories();
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.response?.data?.message || "Failed to create category",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleUpdateCategory = async () => {
+    if (!editingCategory) return;
+    if (!categoryForm.name.trim()) {
+      toast({ title: "Error", description: "Category name is required", variant: "destructive" });
+      return;
+    }
+
+    try {
+      await updateCategoryMutation.mutateAsync({
+        name: categoryForm.name,
+        description: categoryForm.description || undefined,
+        id: editingCategory.id,
+        slug: categoryForm.name.toLowerCase().replace(/ /g, "")
+      });
+
+      toast({ title: "Success", description: "Category updated successfully" });
+      setCategoryDialogOpen(false);
+      setEditingCategory(null);
+      setCategoryForm({ name: "", description: "" });
+      await refetchCategories();
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.response?.data?.message || "Failed to update category",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleDeleteCategory = async () => {
+    if (!deleteCategoryDialog.category) return;
+
+    try {
+      await deleteCategoryMutation.mutateAsync(deleteCategoryDialog.category.id);
+
+      toast({ title: "Success", description: "Category deleted successfully" });
+      setDeleteCategoryDialog({ open: false, category: null });
+      await refetchCategories();
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.response?.data?.message || "Failed to delete category",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const openEditCategoryDialog = (category: Category) => {
+    setEditingCategory(category);
+    setCategoryForm({ name: category.name, description: category.description || "" });
+    setCategoryDialogOpen(true);
+  };
+
+  const openCreateCategoryDialog = () => {
+    setEditingCategory(null);
+    setCategoryForm({ name: "", description: "" });
+    setCategoryDialogOpen(true);
+  };
+
+  const openDetail = (testimony: AdaptedTestimony) => {
     setSelectedTestimony(testimony);
     setEditMode(false);
     setCurrentView("detail");
   };
 
-  const startEdit = (t: TestimonyData) => {
-    setEditForm({ title: t.title, category: t.category, fullStory: t.fullStory });
+  const startEdit = (t: AdaptedTestimony) => {
+    setEditForm({
+      title: t.title,
+      categoryId: t.categoryId,
+      categoryName: t.category,
+      fullStory: t.fullStory
+    });
     setEditMode(true);
   };
 
-  const handleLogout = () => { logout(); navigate("/admin", { replace: true }); };
+  const handleLogout = () => {
+    logout();
+    navigate("/admin", { replace: true });
+  };
 
   const goToView = (view: AdminView) => {
     setCurrentView(view);
     setSidebarOpen(false);
-    if (view !== "detail") { setSelectedTestimony(null); setEditMode(false); }
+    if (view !== "detail") {
+      setSelectedTestimony(null);
+      setEditMode(false);
+    }
   };
-
-
 
   /* ─── Render helpers ─── */
 
-  const renderTestimonyRow = (t: TestimonyData) => {
-    const MediaIcon = t.mediaType ? mediaIcons[t.mediaType] : null;
+  const renderTestimonyRow = (t: AdaptedTestimony) => {
     return (
       <div key={t.id} className="flex flex-col sm:flex-row sm:items-center gap-3 p-4 border border-border rounded-lg bg-card hover:shadow-[var(--card-hover-shadow)] transition-shadow cursor-pointer" onClick={() => openDetail(t)}>
-        {MediaIcon && (
-          <div className="w-12 h-12 rounded-md bg-muted flex items-center justify-center flex-shrink-0">
-            <MediaIcon className="h-5 w-5 text-muted-foreground" />
-          </div>
-        )}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
             <h4 className="font-semibold text-foreground truncate">{t.title}</h4>
-            <Badge variant="outline" className={`text-xs flex-shrink-0 ${categoryStyles[t.category]}`}>{t.category}</Badge>
+            <Badge variant="outline" className={`text-xs flex-shrink-0 ${getCategoryColor(t.category)}`}>
+              {t.category}
+            </Badge>
           </div>
           <p className="text-sm text-muted-foreground line-clamp-1">{t.snippet}</p>
           <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
-            <span>{t.isAnonymous ? (<>Anonymous <span className="text-muted-foreground/40 italic">({t.realName})</span></>) : t.contributor}</span>
+            <span>{t.contributor}</span>
             <span>{format(t.createdAt, "MMM d, yyyy")}</span>
+            <span>{t.views} views</span>
           </div>
         </div>
         {t.status === "pending" && (
@@ -252,16 +545,76 @@ const AdminDashboard = () => {
     );
   };
 
-  const renderQueue = (status: TestimonyStatus, emptyMessage: string) => {
-    const items = filteredTestimonies(status);
+  const renderQueue = (status: "pending" | "approved" | "rejected", emptyMessage: string) => {
+    let items: AdaptedTestimony[] = [];
+    if (status === "pending") items = pendingTestimonies;
+    if (status === "approved") items = approvedTestimonies;
+    if (status === "rejected") items = rejectedTestimonies;
+
     if (items.length === 0) return <p className="text-muted-foreground text-center py-12">{emptyMessage}</p>;
     return <div className="space-y-3">{items.map(renderTestimonyRow)}</div>;
   };
 
+  const renderCategories = () => (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-bold text-foreground">Manage Categories</h2>
+        <Button onClick={openCreateCategoryDialog} className="gap-2">
+          <Plus className="h-4 w-4" /> Add Category
+        </Button>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {categories.map((category) => (
+          <div key={category.id} className="bg-card border border-border rounded-lg p-4 shadow-[var(--card-shadow)]">
+            <div className="flex items-start justify-between mb-3">
+              <div>
+                <Badge className="mb-2" style={{ backgroundColor: getChartColor(category.name, category.id) }}>
+                  {category.name}
+                </Badge>
+                <h3 className="font-semibold text-foreground">{category.name}</h3>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => openEditCategoryDialog(category)}
+                  className="h-8 w-8 p-0"
+                >
+                  <Edit2 className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setDeleteCategoryDialog({ open: true, category })}
+                  className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                  disabled={(category._count?.testimonies || 0) > 0}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+            {category.description && (
+              <p className="text-sm text-muted-foreground mb-3">{category.description}</p>
+            )}
+            <div className="text-xs text-muted-foreground border-t border-border pt-3 mt-2">
+              <p>Slug: {category.slug}</p>
+              <p>Testimonies: {category._count?.testimonies || 0}</p>
+              <p>Created: {format(new Date(category.createdAt), "MMM d, yyyy")}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {categories.length === 0 && (
+        <p className="text-muted-foreground text-center py-12">No categories found. Create your first category!</p>
+      )}
+    </div>
+  );
+
   const renderDetail = () => {
     if (!selectedTestimony) return null;
     const t = selectedTestimony;
-    const MediaIcon = t.mediaType ? mediaIcons[t.mediaType] : null;
 
     return (
       <div className="space-y-6">
@@ -274,20 +627,41 @@ const AdminDashboard = () => {
             <h3 className="font-semibold text-foreground">Edit Testimony</h3>
             <div>
               <label className="text-sm font-medium text-foreground">Title</label>
-              <Input value={editForm.title} onChange={(e) => setEditForm((f) => ({ ...f, title: e.target.value }))} className="mt-1" />
+              <Input
+                value={editForm.title}
+                onChange={(e) => setEditForm((f) => ({ ...f, title: e.target.value }))}
+                className="mt-1"
+              />
             </div>
             <div>
               <label className="text-sm font-medium text-foreground">Category</label>
-              <Select value={editForm.category} onValueChange={(v) => setEditForm((f) => ({ ...f, category: v as TestimonyCategory }))}>
+              <Select
+                value={editForm.categoryId.toString()}
+                onValueChange={(v) => {
+                  const category = categories.find(c => c.id.toString() === v);
+                  setEditForm((f) => ({
+                    ...f,
+                    categoryId: parseInt(v),
+                    categoryName: category?.name || ""
+                  }));
+                }}
+              >
                 <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {categories.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                  {categories.map((c) => (
+                    <SelectItem key={c.id} value={c.id.toString()}>{c.name}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
             <div>
               <label className="text-sm font-medium text-foreground">Full Story</label>
-              <Textarea value={editForm.fullStory} onChange={(e) => setEditForm((f) => ({ ...f, fullStory: e.target.value }))} rows={8} className="mt-1" />
+              <Textarea
+                value={editForm.fullStory}
+                onChange={(e) => setEditForm((f) => ({ ...f, fullStory: e.target.value }))}
+                rows={8}
+                className="mt-1"
+              />
             </div>
             <div className="flex gap-3">
               <Button onClick={() => setConfirmDialog({ open: true, type: "edit", testimonyId: t.id })}>Save Changes</Button>
@@ -297,24 +671,18 @@ const AdminDashboard = () => {
         ) : (
           <>
             <div>
-              <Badge variant="outline" className={`mb-3 ${categoryStyles[t.category]}`}>{t.category}</Badge>
+              <Badge variant="outline" className={`mb-3 ${getCategoryColor(t.category)}`}>
+                {t.category}
+              </Badge>
               <h2 className="text-2xl md:text-3xl font-bold text-foreground">{t.title}</h2>
             </div>
 
             <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
-              <span>
-                Contributor:{" "}
-                {t.isAnonymous ? (<>Anonymous <span className="text-muted-foreground/40 italic">({t.realName})</span></>) : <span className="text-foreground font-medium">{t.realName || t.contributor}</span>}
-              </span>
+              <span>Contributor: <span className="text-foreground font-medium">{t.contributor}</span></span>
               <span>Submitted: {format(t.createdAt, "MMMM d, yyyy 'at' h:mm a")}</span>
+              <span>Views: {t.views}</span>
               <span>Status: <Badge variant={t.status === "approved" ? "default" : t.status === "rejected" ? "destructive" : "secondary"} className="ml-1">{t.status}</Badge></span>
             </div>
-
-            {MediaIcon && (
-              <div className="h-48 bg-muted rounded-lg flex items-center justify-center">
-                <MediaIcon className="h-16 w-16 text-muted-foreground/40" />
-              </div>
-            )}
 
             <div className="bg-muted/30 rounded-lg p-6">
               <p className="text-foreground leading-relaxed whitespace-pre-wrap">{t.fullStory}</p>
@@ -330,7 +698,13 @@ const AdminDashboard = () => {
             {t.status === "pending" && (
               <div className="border-t border-border pt-6 space-y-4">
                 <h3 className="font-semibold text-foreground">Moderation Actions</h3>
-                <Textarea placeholder="Optional rejection note..." value={rejectionNote} onChange={(e) => setRejectionNote(e.target.value)} maxLength={500} className="resize-none" />
+                <Textarea
+                  placeholder="Optional rejection note..."
+                  value={rejectionNote}
+                  onChange={(e) => setRejectionNote(e.target.value)}
+                  maxLength={500}
+                  className="resize-none"
+                />
                 <div className="flex gap-3">
                   <Button onClick={() => setConfirmDialog({ open: true, type: "approve", testimonyId: t.id })} className="gap-2">
                     <CheckCircle2 className="h-4 w-4" /> Approve
@@ -397,13 +771,24 @@ const AdminDashboard = () => {
     </div>
   );
 
+  const filteredAuditLog = useMemo(() => {
+    let entries = [...auditLog];
+    if (auditActionFilter !== "all") entries = entries.filter((e) => e.action === auditActionFilter);
+    if (auditDaysFilter !== "all") {
+      const cutoff = startOfDay(subDays(new Date(), parseInt(auditDaysFilter)));
+      entries = entries.filter((e) => isAfter(e.timestamp, cutoff));
+    }
+    return entries;
+  }, [auditLog, auditActionFilter, auditDaysFilter]);
+
+  console.log("COunts", counts)
   const renderDashboardOverview = () => (
     <div className="space-y-8">
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
           { label: "Total", value: counts.total, icon: BarChart3, color: "text-primary" },
           { label: "Pending", value: counts.pending, icon: Clock, color: "text-accent" },
-          { label: "Approved", value: counts.approved, icon: CheckCircle2, color: "text-healing" },
+          { label: "Approved", value: counts.approved ?? 0, icon: CheckCircle2, color: "text-healing" },
           { label: "Rejected", value: counts.rejected, icon: XCircle, color: "text-destructive" },
         ].map((stat) => (
           <div key={stat.label} className="bg-card border border-border rounded-lg p-4 shadow-[var(--card-shadow)]">
@@ -416,12 +801,18 @@ const AdminDashboard = () => {
         ))}
       </div>
 
-      {/* Weekly trend */}
       <div className="bg-card border border-border rounded-lg p-4 shadow-[var(--card-shadow)] flex items-center gap-3">
-        {weeklyTrend.trend === "up" ? <TrendingUp className="h-5 w-5 text-healing" /> : weeklyTrend.trend === "down" ? <TrendingDown className="h-5 w-5 text-destructive" /> : <Minus className="h-5 w-5 text-muted-foreground" />}
+        {dashboardStats.data?.submitionsThisWeek > 0 ? <TrendingUp className="h-5 w-5 text-healing" /> : <TrendingDown className="h-5 w-5 text-destructive" />}
         <div>
           <p className="text-sm text-muted-foreground">This week's submissions</p>
-          <p className="font-semibold text-foreground">{weeklyTrend.thisWeek} submissions {weeklyTrend.diff !== 0 && <span className={weeklyTrend.diff > 0 ? "text-healing" : "text-destructive"}>({weeklyTrend.diff > 0 ? "+" : ""}{weeklyTrend.diff} vs last week)</span>}</p>
+          <p className="font-semibold text-foreground">
+            {dashboardStats.data?.submitionsThisWeek || 0} submissions
+            {dashboardStats.data?.submitionsThisWeek !== undefined && dashboardStats.data?.submitionsThisWeek !== 0 &&
+              <span className={dashboardStats.data?.submitionsThisWeek > 0 ? "text-healing" : "text-destructive"}>
+                ({dashboardStats.data?.submitionsThisWeek > 0 ? "+" : ""}{dashboardStats.data?.submitionsThisWeek} vs last week)
+              </span>
+            }
+          </p>
         </div>
       </div>
 
@@ -439,7 +830,6 @@ const AdminDashboard = () => {
     <div className="space-y-6">
       <h2 className="text-xl font-bold text-foreground">Analytics Overview</h2>
 
-      {/* Status cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {[
           { label: "Pending", value: counts.pending, pct: Math.round((counts.pending / Math.max(counts.total, 1)) * 100), color: "bg-accent" },
@@ -457,7 +847,6 @@ const AdminDashboard = () => {
         ))}
       </div>
 
-      {/* Trend indicator */}
       <div className="bg-card border border-border rounded-lg p-5 shadow-[var(--card-shadow)] flex items-center gap-3">
         {weeklyTrend.trend === "up" ? <TrendingUp className="h-5 w-5 text-healing" /> : weeklyTrend.trend === "down" ? <TrendingDown className="h-5 w-5 text-destructive" /> : <Minus className="h-5 w-5 text-muted-foreground" />}
         <div>
@@ -466,45 +855,46 @@ const AdminDashboard = () => {
         </div>
       </div>
 
-      {/* Category bar chart */}
-      <div className="bg-card border border-border rounded-lg p-5 shadow-[var(--card-shadow)]">
-        <h3 className="font-semibold text-foreground mb-4">Submissions by Category</h3>
-        <div className="h-64">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={categoryBreakdown}>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(220, 15%, 90%)" />
-              <XAxis dataKey="name" tick={{ fontSize: 12, fill: "hsl(220, 10%, 45%)" }} />
-              <YAxis allowDecimals={false} tick={{ fontSize: 12, fill: "hsl(220, 10%, 45%)" }} />
-              <Tooltip contentStyle={{ background: "hsl(0, 0%, 100%)", border: "1px solid hsl(220, 15%, 90%)", borderRadius: "0.5rem" }} />
-              <Bar dataKey="approved" stackId="a" fill="hsl(160, 60%, 45%)" name="Approved" radius={[0, 0, 0, 0]} />
-              <Bar dataKey="pending" stackId="a" fill="hsl(35, 85%, 55%)" name="Pending" />
-              <Bar dataKey="rejected" stackId="a" fill="hsl(0, 84%, 60%)" name="Rejected" radius={[4, 4, 0, 0]} />
-              <Legend />
-            </BarChart>
-          </ResponsiveContainer>
+      {categoryBreakdown.length > 0 && (
+        <div className="bg-card border border-border rounded-lg p-5 shadow-[var(--card-shadow)]">
+          <h3 className="font-semibold text-foreground mb-4">Submissions by Category</h3>
+          <div className="h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={categoryBreakdown}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(220, 15%, 90%)" />
+                <XAxis dataKey="name" tick={{ fontSize: 12, fill: "hsl(220, 10%, 45%)" }} />
+                <YAxis allowDecimals={false} tick={{ fontSize: 12, fill: "hsl(220, 10%, 45%)" }} />
+                <Tooltip contentStyle={{ background: "hsl(0, 0%, 100%)", border: "1px solid hsl(220, 15%, 90%)", borderRadius: "0.5rem" }} />
+                <Bar dataKey="approved" stackId="a" fill="hsl(160, 60%, 45%)" name="Approved" radius={[0, 0, 0, 0]} />
+                <Bar dataKey="pending" stackId="a" fill="hsl(35, 85%, 55%)" name="Pending" />
+                <Bar dataKey="rejected" stackId="a" fill="hsl(0, 84%, 60%)" name="Rejected" radius={[4, 4, 0, 0]} />
+                <Legend />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
         </div>
-      </div>
+      )}
 
-      {/* Pie chart */}
-      <div className="bg-card border border-border rounded-lg p-5 shadow-[var(--card-shadow)]">
-        <h3 className="font-semibold text-foreground mb-4">Category Distribution</h3>
-        <div className="h-64">
-          <ResponsiveContainer width="100%" height="100%">
-            <PieChart>
-              <Pie data={pieData} cx="50%" cy="50%" innerRadius={50} outerRadius={90} paddingAngle={3} dataKey="value" label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}>
-                {pieData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
-              </Pie>
-              <Tooltip />
-            </PieChart>
-          </ResponsiveContainer>
+      {pieData.length > 0 && (
+        <div className="bg-card border border-border rounded-lg p-5 shadow-[var(--card-shadow)]">
+          <h3 className="font-semibold text-foreground mb-4">Category Distribution</h3>
+          <div className="h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie data={pieData} cx="50%" cy="50%" innerRadius={50} outerRadius={90} paddingAngle={3} dataKey="value" label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}>
+                  {pieData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
+                </Pie>
+                <Tooltip />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
         </div>
-      </div>
+      )}
 
-      {/* Views */}
       <div className="bg-card border border-border rounded-lg p-5 shadow-[var(--card-shadow)]">
         <p className="text-sm text-muted-foreground mb-1">Total Views (Approved)</p>
         <p className="text-3xl font-bold text-foreground">
-          {data.filter((t) => t.status === "approved").reduce((sum, t) => sum + t.views, 0).toLocaleString()}
+          {approvedTestimonies.reduce((sum, t) => sum + t.views, 0).toLocaleString()}
         </p>
       </div>
     </div>
@@ -518,15 +908,23 @@ const AdminDashboard = () => {
     analytics: "Analytics",
     audit: "Audit Log",
     detail: selectedTestimony?.title || "Testimony Detail",
+    categories: "Manage Categories",
   };
 
-  const confirmTarget = data.find((t) => t.id === confirmDialog.testimonyId);
+  const confirmTarget = (() => {
+    if (confirmDialog.testimonyId) {
+      return [...pendingTestimonies, ...approvedTestimonies, ...rejectedTestimonies].find(
+        (t) => t.id === confirmDialog.testimonyId
+      );
+    }
+    return null;
+  })();
 
   return (
     <div className="min-h-screen flex bg-muted/20">
       {sidebarOpen && <div className="fixed inset-0 bg-foreground/30 z-40 lg:hidden" onClick={() => setSidebarOpen(false)} />}
+{/* ========================= THE LEFT NAV===================================== */}
 
-      {/* Sidebar */}
       <aside className={`fixed lg:static inset-y-0 left-0 z-50 w-64 bg-card border-r border-border flex flex-col transform transition-transform lg:translate-x-0 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}>
         <div className="flex items-center gap-2 px-5 py-4 border-b border-border">
           <Church className="h-6 w-6 text-primary" />
@@ -550,7 +948,9 @@ const AdminDashboard = () => {
         </div>
       </aside>
 
-      {/* Main */}
+{/* ========================= END THE LEFT NAV===================================== */}
+
+{/* ========================= THE MAIN CONTENT===================================== */}
       <div className="flex-1 flex flex-col min-w-0">
         <header className="sticky top-0 z-30 bg-background/95 backdrop-blur border-b border-border px-4 sm:px-6 h-14 flex items-center gap-3">
           <button onClick={() => setSidebarOpen(true)} className="lg:hidden text-muted-foreground"><Menu className="h-5 w-5" /></button>
@@ -561,11 +961,83 @@ const AdminDashboard = () => {
           {currentView === "pending" && <div><h2 className="text-xl font-bold text-foreground mb-4">Pending Testimonies</h2>{renderQueue("pending", "No pending testimonies. All caught up! 🎉")}</div>}
           {currentView === "approved" && <div><h2 className="text-xl font-bold text-foreground mb-4">Approved Testimonies</h2>{renderQueue("approved", "No approved testimonies yet.")}</div>}
           {currentView === "rejected" && <div><h2 className="text-xl font-bold text-foreground mb-4">Rejected Testimonies</h2>{renderQueue("rejected", "No rejected testimonies.")}</div>}
+          {currentView === "categories" && renderCategories()}
           {currentView === "analytics" && renderAnalytics()}
           {currentView === "audit" && renderAuditLog()}
           {currentView === "detail" && renderDetail()}
         </main>
       </div>
+
+
+
+
+      {/* ========================= END THE MAIN CONTENT===================================== */}
+
+
+
+
+      {/* ========================= START THE CATEGORY DIALOG===================================== */}
+      <Dialog open={categoryDialogOpen} onOpenChange={setCategoryDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{editingCategory ? "Edit Category" : "Create New Category"}</DialogTitle>
+            <DialogDescription>
+              {editingCategory ? "Update the category details below." : "Add a new category for organizing testimonies."}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div>
+              <label className="text-sm font-medium text-foreground">Name *</label>
+              <Input
+                value={categoryForm.name}
+                onChange={(e) => setCategoryForm(f => ({ ...f, name: e.target.value }))}
+                placeholder="e.g., Healing, Provision, Breakthrough"
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium text-foreground">Description (Optional)</label>
+              <Textarea
+                value={categoryForm.description}
+                onChange={(e) => setCategoryForm(f => ({ ...f, description: e.target.value }))}
+                placeholder="Describe what this category represents"
+                rows={3}
+                className="mt-1"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCategoryDialogOpen(false)}>Cancel</Button>
+            <Button onClick={editingCategory ? handleUpdateCategory : handleCreateCategory}>
+              {editingCategory ? "Update" : "Create"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Category Confirmation */}
+      <AlertDialog open={deleteCategoryDialog.open} onOpenChange={(open) => setDeleteCategoryDialog(d => ({ ...d, open }))}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Category</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete "{deleteCategoryDialog.category?.name}"?
+              {deleteCategoryDialog.category && (deleteCategoryDialog.category._count?.testimonies || 0) > 0 && (
+                <span className="block mt-2 text-destructive">
+                  Warning: This category has {deleteCategoryDialog.category._count?.testimonies} testimonies associated with it.
+                  Deleting it will affect these testimonies.
+                </span>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteCategory} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Confirmation Dialogs */}
       <AlertDialog open={confirmDialog.open} onOpenChange={(open) => setConfirmDialog((s) => ({ ...s, open }))}>
