@@ -28,7 +28,7 @@ const TestimonyDetail = () => {
   const { id } = useParams<{ id: string }>();
   const { data: testimony, isLoading, error } = useGetTestimonyById(id);
 
-  if (!testimony && !isLoading)  {
+  if (!testimony && !isLoading) {
     return (
       <div className="min-h-screen flex flex-col bg-background">
         <Header />
@@ -47,10 +47,10 @@ const TestimonyDetail = () => {
     );
   }
 
-  if( isLoading ){
+  if (isLoading) {
     return <SingleTestimonySkeleton />
   }
-  if( error ) {
+  if (error) {
     return (
       <div className="min-h-screen flex flex-col bg-background">
         <Header />
@@ -71,12 +71,12 @@ const TestimonyDetail = () => {
 
   const MediaIcon = testimony.mediaType ? mediaIcons[testimony.mediaType] : null;
   const shareUrl = `${window.location.origin}/testimony/${testimony.id}`;
-  
+
 
   return (
     <>
       <Helmet>
-        <title>{testimony?.title} | Grace Testimonies</title>
+        <title>{testimony?.title} | FFI Testimonies</title>
         <meta name="description" content={testimony?.snippet} />
         <meta property="og:title" content={testimony?.title} />
         <meta property="og:description" content={testimony?.snippet} />
@@ -104,13 +104,13 @@ const TestimonyDetail = () => {
 
                 <Badge
                   variant="outline"
-                  // className={`${getCategoryStyle(testimony.category)}`}
+                // className={`${getCategoryStyle(testimony.category)}`}
                 >
                   {testimony.category.name}
                 </Badge>
               </div>
 
-             
+
               <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold text-foreground mb-4">
                 {testimony.title}
               </h1>

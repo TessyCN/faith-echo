@@ -1,6 +1,7 @@
 import { toast } from "@/hooks/use-toast";
 import { api } from "@/lib/axiosInstance";
 import { useMutation } from "@tanstack/react-query";
+import axios from "axios";
 
 
 
@@ -8,7 +9,9 @@ export const loginAdmin = async (
   email: string,
   password: string
 ) => {
-  const response = await api.post("/admin/login", {
+  
+  const url = import.meta.env.VITE_BE_API_URL;
+  const response = await axios.post(`${url}/admin/login`, {
     email,
     password,
   });

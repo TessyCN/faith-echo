@@ -7,8 +7,8 @@ import { TestimonyCategory } from "@/types";
 export interface Testimony {
   id: string;
   title: string;
-  snippet: string;
-  contributor: string;
+  content: string;
+  authorName: string;
   category: any;
 }
 
@@ -52,13 +52,6 @@ export function getCategoryStyle(categories: TestimonyCategory[]) {
     { bg: "bg-emerald-100", text: "text-emerald-700", border: "border-emerald-200" },
     { bg: "bg-slate-100", text: "text-slate-700", border: "border-slate-200" },
   ];
-
-  return categories.map((category, index) => {
-    const colorIndex = getColorFromString(category.name) % colorSchemes.length;
-    const scheme = colorSchemes[colorIndex];
-    
-    return `${scheme.bg} ${scheme.text} ${scheme.border}`;
-  });
 }
 
 const TestimonyCard = ({ testimony }: TestimonyCardProps) => {
@@ -68,9 +61,9 @@ const TestimonyCard = ({ testimony }: TestimonyCardProps) => {
         <CardHeader className="pb-3">
           <Badge 
             variant="outline" 
-            className={`w-fit text-xs font-medium ${getCategoryStyle[testimony?.category?.name]}`}
+            className={`w-fit text-xs font-medium ${getCategoryStyle(testimony?.category?.name)}`}
           >
-            {testimony.category?.name}
+            {testimony?.category?.name}
           </Badge>
           <h3 className="text-lg font-semibold text-card-foreground mt-2 group-hover:text-primary transition-colors">
             {testimony.title}
@@ -78,12 +71,12 @@ const TestimonyCard = ({ testimony }: TestimonyCardProps) => {
         </CardHeader>
         <CardContent className="pb-4">
           <p className="text-muted-foreground text-sm leading-relaxed line-clamp-3">
-            {testimony.snippet}
+            {testimony.content}
           </p>
         </CardContent>
         <CardFooter className="pt-0">
           <p className="text-xs text-muted-foreground">
-            — {testimony.contributor}
+            — {testimony.authorName}
           </p>
         </CardFooter>
       </Card>

@@ -18,7 +18,7 @@ const Header = () => {
         {/* Logo */}
         <Link to="/" className="flex items-center gap-2 text-primary">
           <Church className="h-8 w-8" />
-          <span className="text-xl font-semibold tracking-tight">Grace Testimonies</span>
+          <span className="text-xl font-semibold tracking-tight">FFI Testimonies</span>
         </Link>
 
         {/* Desktop Navigation */}

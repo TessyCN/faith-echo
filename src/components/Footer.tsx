@@ -12,7 +12,7 @@ const Footer = () => {
           <div>
             <Link to="/" className="flex items-center gap-2 mb-4">
               <Church className="h-6 w-6" />
-              <span className="text-lg font-semibold">Grace Testimonies</span>
+              <span className="text-lg font-semibold">FFI Testimonies</span>
             </Link>
             <p className="text-primary-foreground/70 text-sm leading-relaxed">
               Sharing stories of God's faithfulness to build faith and inspire hope in our community.
@@ -41,15 +41,15 @@ const Footer = () => {
             <div className="flex flex-col gap-3 text-sm text-primary-foreground/70">
               <div className="flex items-center gap-2">
                 <MapPin className="h-4 w-4 flex-shrink-0" />
-                <span>123 Faith Street, Grace City, GC 12345</span>
+                <span> 5 Oregbeni Street, Off Ihiama, GRA, Benin City, Nigeria</span>
               </div>
               <div className="flex items-center gap-2">
                 <Phone className="h-4 w-4 flex-shrink-0" />
-                <span>(555) 123-4567</span>
+                <a href="tel:+2348039396319">+234 803 939 6319</a>
               </div>
               <div className="flex items-center gap-2">
                 <Mail className="h-4 w-4 flex-shrink-0" />
-                <span>testimonies@gracechurch.org</span>
+                <a href="mailto:info@ffi.org"> info@ffi.org </a>
               </div>
             </div>
           </div>
@@ -58,7 +58,7 @@ const Footer = () => {
         {/* Copyright */}
         <div className="border-t border-primary-foreground/10 mt-10 pt-8 text-center">
           <p className="text-sm text-primary-foreground/60">
-            © {currentYear} Grace Testimonies. All rights reserved.
+            © {currentYear} FFI Testimonies. All rights reserved.
           </p>
         </div>
       </div>

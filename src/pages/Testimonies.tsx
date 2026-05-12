@@ -50,7 +50,7 @@ const Testimonies = () => {
   return (
     <>
       <Helmet>
-        <title>Testimonies Archive | Grace Testimonies</title>
+        <title>Testimonies Archive | FFI Testimonies</title>
         <meta
           name="description"
           content="Browse inspiring stories of faith, healing, provision, deliverance, and breakthrough from our church community and around the world"

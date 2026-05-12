@@ -15,45 +15,45 @@ const AdminLogin = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
-useEffect(() => {
-  if (isAuthenticated) {
-    navigate("/admin/dashboard", {
-      replace: true,
-    });
-  }
-}, [isAuthenticated, navigate]);
+  useEffect(() => {
+    if (isAuthenticated) {
+      navigate("/admin/dashboard", {
+        replace: true,
+      });
+    }
+  }, [isAuthenticated, navigate]);
 
-const handleSubmit = async (
-  e: React.FormEvent
-) => {
-  e.preventDefault();
+  const handleSubmit = async (
+    e: React.FormEvent
+  ) => {
+    e.preventDefault();
 
-  if (!email.trim() || !password.trim()) {
-    toast({
-      title: "Missing fields",
-      description:
-        "Please enter email and password.",
-      variant: "destructive",
-    });
+    if (!email.trim() || !password.trim()) {
+      toast({
+        title: "Missing fields",
+        description:
+          "Please enter email and password.",
+        variant: "destructive",
+      });
 
-    return;
-  }
+      return;
+    }
 
-  const success = await login(email, password);
+    const success = await login(email, password);
+    console.log("Admin Login Success : ", success);
+    if (success) {
+      toast({
+        title: "Login successful",
+      });
 
-  if (success) {
-    toast({
-      title: "Login successful",
-    });
-
-    navigate("/admin/dashboard");
-  } else {
-    toast({
-      title: "Login failed",
-      variant: "destructive",
-    });
-  }
-};
+      navigate("/admin/dashboard");
+    } else {
+      toast({
+        title: "Login failed",
+        variant: "destructive",
+      });
+    }
+  };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-muted/30 px-4">
@@ -64,7 +64,7 @@ const handleSubmit = async (
             <Church className="h-8 w-8 text-primary" />
           </div>
           <h1 className="text-2xl font-serif font-bold text-foreground">Admin Login</h1>
-          <p className="text-sm text-muted-foreground mt-1">Grace Testimonies Moderation</p>
+          <p className="text-sm text-muted-foreground mt-1">FFI Testimonies Moderation</p>
         </div>
 
         {/* Form */}
@@ -74,7 +74,7 @@ const handleSubmit = async (
             <Input
               id="email"
               type="email"
-              placeholder="admin@gracechurch.org"
+              placeholder="admin@FFIchurch.org"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               maxLength={255}
@@ -113,7 +113,7 @@ const handleSubmit = async (
 
         {/* Dev hint */}
         <p className="text-xs text-muted-foreground text-center mt-6">
-          Demo: admin@gracechurch.org / admin123
+          Demo: admin@FFIchurch.org / admin123
         </p>
       </div>
     </div>

@@ -21,7 +21,7 @@ import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { useAdminAuth } from "@/contexts/AdminAuthContext";
-import { format, subDays, isAfter, isBefore } from "date-fns";
+import { format, subDays, isAfter, isBefore, startOfDay } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -93,7 +93,7 @@ interface Category {
 }
 
 // Frontend adapted testimony type
-interface AdaptedTestimony {
+export interface AdaptedTestimony {
   id: string;
   title: string;
   snippet: string;
@@ -113,7 +113,7 @@ interface AdaptedTestimony {
 
 /* ─── Constants ─── */
 
-const getCategoryColor = (categoryName: string): string => {
+export const getCategoryColor = (categoryName: string): string => {
   const colors = [
     "bg-healing/10 text-healing border-healing/20",
     "bg-provision/10 text-provision border-provision/20",
@@ -177,10 +177,11 @@ const AdminDashboard = () => {
 
   // Fetch data from backend
   const dashboardStats = useGetDashboardStats();
-  const { data: pendingData, refetch: refetchPending } = useGetPendingTestimonies();
-  const { data: approvedData, refetch: refetchApproved } = useGetRejectedTestimonies();
-  const { data: rejectedData, refetch: refetchRejected } = useGetRejectedTestimonies();
-  const { data: categoriesData, refetch: refetchCategories } = useGetCategories();
+  const { data: statsData, isLoading: isLoadingStats } = useGetDashboardStats();
+  const { data: pendingData, refetch: refetchPending, isLoading: isLoadingPending } = useGetPendingTestimonies();
+  const { data: approvedData, refetch: refetchApproved, isLoading: isLoadingApproved } = useGetApprovedTestimonies();
+  const { data: rejectedData, refetch: refetchRejected, isLoading: isLoadingRejected } = useGetRejectedTestimonies();
+  const { data: categoriesData, refetch: refetchCategories, isLoading: isLoadingCategories } = useGetCategories();
 
   // Category mutations
   const createCategoryMutation = useCreateCategory();
@@ -232,8 +233,10 @@ const AdminDashboard = () => {
   // Get adapted testimonies lists
   const pendingTestimonies: AdaptedTestimony[] = useMemo(() => {
     if (!pendingData?.data) return [];
-    return pendingData.data.map(adaptTestimony);
+    return pendingData?.data?.map(adaptTestimony);
   }, [pendingData]);
+
+
 
   const approvedTestimonies: AdaptedTestimony[] = useMemo(() => {
     if (!approvedData?.data) return [];
@@ -252,20 +255,20 @@ const AdminDashboard = () => {
 
 
 
+  const counts = {
 
-
-  const counts = useMemo(() => ({
-    pending: pendingTestimonies.length,
-    approved: approvedTestimonies.length,
-    rejected: rejectedData?.data.length,
-    total: dashboardStats.data?.totalTestimonies || (pendingTestimonies.length + approvedTestimonies.length + rejectedTestimonies.length),
-  }), [pendingTestimonies.length, approvedTestimonies.length, rejectedData?.data.length, dashboardStats.data?.totalTestimonies]);
+    pending: statsData?.pendingTestimonies ?? 0,
+    approved: statsData?.approvedTestimonies ?? 0,
+    rejected: statsData?.rejectedTestimonies ?? 0,
+    total: statsData?.totalTestimonies ?? 0,
+  };
 
   // Combine all testimonies for analytics
   const allTestimonies = useMemo(() => {
     return [...pendingTestimonies, ...approvedTestimonies, ...rejectedTestimonies];
   }, [pendingTestimonies, approvedTestimonies, rejectedTestimonies]);
 
+  console.log("Dashboard stats: ", statsData);
   const categoryBreakdown = useMemo(() =>
     categories.map((cat) => ({
       name: cat.name,
@@ -282,7 +285,6 @@ const AdminDashboard = () => {
       color: getChartColor(cat.name, index),
     })).filter((d) => d.value > 0), [allTestimonies, categories]);
 
-    // console.log("Approved testimonies", approved.data?.data.length )
   const weeklyTrend = useMemo(() => {
     const now = new Date();
     const thisWeek = allTestimonies.filter((t) => isAfter(t.createdAt, subDays(now, 7))).length;
@@ -323,7 +325,7 @@ const AdminDashboard = () => {
       await updateStatusMutation.mutateAsync({
         id: parseInt(id),
         status: newStatus,
-        rejectionNote: action === "reject" ? rejectionNote : undefined
+        // rejectionNote: action === "reject" ? rejectionNote : undefined
       });
 
       addAuditEntry(id, testimony.title, action === "approve" ? "Approved" : "Rejected", action === "reject" ? rejectionNote : undefined);
@@ -413,7 +415,11 @@ const AdminDashboard = () => {
       toast({ title: "Success", description: "Category created successfully" });
       setCategoryDialogOpen(false);
       setCategoryForm({ name: "", description: "" });
-      await refetchCategories();
+      await createCategoryMutation.mutateAsync({
+        name: categoryForm.name,
+        description: categoryForm.description || undefined,
+        slug: categoryForm.name.toLowerCase().replace(/ /g, "")
+      });
     } catch (error: any) {
       toast({
         title: "Error",
@@ -432,10 +438,12 @@ const AdminDashboard = () => {
 
     try {
       await updateCategoryMutation.mutateAsync({
-        name: categoryForm.name,
-        description: categoryForm.description || undefined,
         id: editingCategory.id,
-        slug: categoryForm.name.toLowerCase().replace(/ /g, "")
+        category: {
+          name: categoryForm.name,
+          description: categoryForm.description || undefined,
+          slug: categoryForm.name.toLowerCase().replace(/ /g, "")
+        }
       });
 
       toast({ title: "Success", description: "Category updated successfully" });
@@ -761,7 +769,6 @@ const AdminDashboard = () => {
                 {entry.details && <p className="text-xs text-muted-foreground mt-0.5">{entry.details}</p>}
               </div>
               <div className="text-xs text-muted-foreground flex flex-col sm:items-end gap-0.5">
-                <span>{entry.adminEmail}</span>
                 <span>{format(entry.timestamp, "MMM d, yyyy 'at' h:mm a")}</span>
               </div>
             </div>
@@ -770,6 +777,7 @@ const AdminDashboard = () => {
       )}
     </div>
   );
+  const isLoading = createCategoryMutation.isPending || updateCategoryMutation.isPending;
 
   const filteredAuditLog = useMemo(() => {
     let entries = [...auditLog];
@@ -781,7 +789,6 @@ const AdminDashboard = () => {
     return entries;
   }, [auditLog, auditActionFilter, auditDaysFilter]);
 
-  console.log("COunts", counts)
   const renderDashboardOverview = () => (
     <div className="space-y-8">
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -923,7 +930,7 @@ const AdminDashboard = () => {
   return (
     <div className="min-h-screen flex bg-muted/20">
       {sidebarOpen && <div className="fixed inset-0 bg-foreground/30 z-40 lg:hidden" onClick={() => setSidebarOpen(false)} />}
-{/* ========================= THE LEFT NAV===================================== */}
+      {/* ========================= THE LEFT NAV===================================== */}
 
       <aside className={`fixed lg:static inset-y-0 left-0 z-50 w-64 bg-card border-r border-border flex flex-col transform transition-transform lg:translate-x-0 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}>
         <div className="flex items-center gap-2 px-5 py-4 border-b border-border">
@@ -948,9 +955,9 @@ const AdminDashboard = () => {
         </div>
       </aside>
 
-{/* ========================= END THE LEFT NAV===================================== */}
+      {/* ========================= END THE LEFT NAV===================================== */}
 
-{/* ========================= THE MAIN CONTENT===================================== */}
+      {/* ========================= THE MAIN CONTENT===================================== */}
       <div className="flex-1 flex flex-col min-w-0">
         <header className="sticky top-0 z-30 bg-background/95 backdrop-blur border-b border-border px-4 sm:px-6 h-14 flex items-center gap-3">
           <button onClick={() => setSidebarOpen(true)} className="lg:hidden text-muted-foreground"><Menu className="h-5 w-5" /></button>
@@ -1008,10 +1015,53 @@ const AdminDashboard = () => {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setCategoryDialogOpen(false)}>Cancel</Button>
-            <Button onClick={editingCategory ? handleUpdateCategory : handleCreateCategory}>
-              {editingCategory ? "Update" : "Create"}
+
+
+            <Button
+              onClick={editingCategory ? handleUpdateCategory : handleCreateCategory}
+              disabled={isLoading}
+              className={`
+      relative transition-all duration-200
+      ${isLoading ? 'cursor-not-allowed opacity-80' : 'hover:scale-105'}
+    `}
+            >
+              {isLoading ? (
+                <div className="flex items-center gap-3">
+                  {/* Spinner */}
+                  <svg
+                    className="animate-spin h-4 w-4"
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                  >
+                    <circle
+                      className="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                    />
+                    <path
+                      className="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                    />
+                  </svg>
+
+                  {/* Pulsating text */}
+                  <span className="animate-pulse">
+                    {editingCategory ? "Updating" : "Creating"}
+                    <span className="animate-bounce inline-block ml-0.5">.</span>
+                    <span className="animate-bounce inline-block ml-0.5" style={{ animationDelay: '0.2s' }}>.</span>
+                    <span className="animate-bounce inline-block ml-0.5" style={{ animationDelay: '0.4s' }}>.</span>
+                  </span>
+                </div>
+              ) : (
+                editingCategory ? "Update" : "Create"
+              )}
             </Button>
-          </DialogFooter>
+            );          </DialogFooter>
         </DialogContent>
       </Dialog>
 

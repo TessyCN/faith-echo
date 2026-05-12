@@ -1,8 +1,8 @@
 import { TestimonyType } from "@/components/TestimonyCard";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import axios from "axios";
-import { useToast } from "@/hooks/use-toast";
-import { TestimonyCategory } from "@/types";
+import {  TestimonyCategory } from "@/types";
+import { api } from "@/lib/axiosInstance";
 
 
 // const API_URL =   import.meta.env.VITE_API_URL;
@@ -45,7 +45,7 @@ export const getTestimonyById = async (id: string) => {
 
 
 export const getDashboardStats = async () => {
-    const response = await axios.post(`${API_URL}/admin/dashboard-stats`);
+    const response = await api.post(`${API_URL}/admin/dashboard-stats`);
     return response.data;
 };
 
@@ -65,25 +65,30 @@ export const getRejectedTestimonies = async () => {
 };
 
 export const updateTestimonyStatus = async (id: number, data: { status: string, rejectionNote?: string }) => {
-    const response = await axios.patch(`${API_URL}/testimonies/${id}/status`, data);
+    const response = await api.patch(`${API_URL}/testimonies/${id}`, data);
     return response.data;
 };
 
 export const updateTestimony = async (id: number, data: { title: string, content: string, categoryId: number }) => {
-    const response = await axios.patch(`${API_URL}/testimonies/${id}`, data);
+    const response = await api.patch(`${API_URL}/testimonies/${id}`, data);
     return response.data;
 };
 
 export const createcategory = async (category: TestimonyCategory) => {
-    const response = await axios.post(`${API_URL}/categories`, category);
+    const response = await api.post(`${API_URL}/categories`, category);
     return response.data;
 };
 export const updatecategory = async (id: number, category: Partial<TestimonyCategory>) => {
-    const response = await axios.patch(`${API_URL}/categories/${id}`, category);
+    const response = await api.patch(`${API_URL}/categories/${id}`, category);
     return response.data;
 };
 export const deletecategory = async (id: number) => {
-    const response = await axios.delete(`${API_URL}/categories/${id}`);
+    const response = await api.delete(`${API_URL}/categories/${id}`);
+    return response.data;
+};
+
+export const getFeaturedTestimonies = async () => {
+    const response = await axios.get(`${API_URL}/testimonies/featured`);
     return response.data;
 };
 
@@ -174,7 +179,7 @@ export const useGetRejectedTestimonies = () => {
 export const useUpdateTestimonyStatus = () => {
     const queryClient = useQueryClient();
     return useMutation({
-        mutationFn: (data: { id: number, status: string, rejectionNote?: string }) => updateTestimonyStatus(data.id, { status: data.status, rejectionNote: data.rejectionNote }),
+        mutationFn: (data: { id: number, status: string }) => updateTestimonyStatus(data.id, { status: data.status }),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["pendingTestimonies"] });
             queryClient.invalidateQueries({ queryKey: ["approvedTestimonies"] });
@@ -226,6 +231,16 @@ export const useDeleteCategory = () => {
         },
     });
 }
+
+
+export const useGetFeaturedTestimonies = () => {
+    return useQuery({
+        queryKey: ["featuredTestimonies"],
+        queryFn: getFeaturedTestimonies,
+    });
+};
+
+
   type GetTestimoniesParams = {
   search?: string;
   page?: number;
