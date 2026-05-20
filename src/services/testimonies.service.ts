@@ -5,8 +5,8 @@ import {  TestimonyCategory } from "@/types";
 import { api } from "@/lib/axiosInstance";
 
 
-// const API_URL =   import.meta.env.VITE_API_URL;
-const API_URL = 'http://localhost:5000';
+const API_URL =   import.meta.env.VITE_API_URL;
+// const API_URL = 'http://localhost:5000';
 const getTestimonies = async () => {
   const response = await axios.get(`${API_URL}/testimonies`);
   return response.data;
