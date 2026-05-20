@@ -27,7 +27,16 @@ const FeaturedTestimonies = () => {
              <FeaturedSkeleton />
             </div>
            ))}
-          {error && <div>Error fetching testimonies</div>}
+          {error && (
+            <div className="col-span-full py-12 text-center">
+              <p className="text-destructive text-lg font-medium">
+                Error fetching testimonies
+              </p>
+              <p className="text-muted-foreground mt-2 text-sm">
+                Please try again later.
+              </p>
+            </div>
+          )}
           {testimonies?.map((testimony, index) => (
             <div
               key={testimony.id}
