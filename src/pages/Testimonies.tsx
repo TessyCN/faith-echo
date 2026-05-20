@@ -9,6 +9,7 @@ import TestimonyArchiveCard from "@/components/TestimonyArchiveCard";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useGetCategories, useGetPublishedTestimonies } from "@/services/testimonies.service";
+import type { TestimonyCategory } from "@/types";
 import { SkeletonTestimonyLoader } from "@/components/TestimonyLoaderSkeleton";
 import { useDebounce } from "@/hooks/useDebounce";
 
@@ -34,7 +35,20 @@ const Testimonies = () => {
     setCurrentPage(1);
   };
 
-  const handleCategoryChange = (value: any | { name: string, id: number, nameSlug: string }) => { setCategorySlug(value.name); setCurrentPage(1); setSelectedCategory(value.slug) };
+const handleSetCategorySlug = (value: string) => {
+  if (value === "All") {
+    setCategorySlug("");
+  } else {
+    setCategorySlug(value);
+  }
+};
+
+  const handleCategoryChange = (value: TestimonyCategory) => {
+    handleSetCategorySlug(value.slug);
+    setCurrentPage(1);
+    setSelectedCategory(value.slug);
+    console.log("categorySlug", value.slug);
+  };
   const handleSortChange = (value: SortOption) => { setSortOption(value); setCurrentPage(1); };
 
   const testimonies = useGetPublishedTestimonies(
@@ -88,7 +102,16 @@ const Testimonies = () => {
 
               <div className="flex flex-col sm:flex-row gap-4 items-center justify-between">
                 <div className="flex items-center justify-center gap-2">
-                  <Button className={selectedCategory === 'All' ? "bg-primary/90 text-primary-foreground hover:bg-primary/90" : "bg-white text-primary border border-primary hover:bg-secondary/90"} onClick={() => setSelectedCategory("All")}>All</Button>
+                  <Button
+                    className={selectedCategory === "All" ? "bg-primary/90 text-primary-foreground hover:bg-primary/90" : "bg-white text-primary border border-primary hover:bg-secondary/90"}
+                    onClick={() => {
+                      setSelectedCategory("All");
+                      setCategorySlug("");
+                      setCurrentPage(1);
+                    }}
+                  >
+                    All
+                  </Button>
                   <CategoryFilter
                     selectedCategory={selectedCategory}
                     category={categories.data}
@@ -178,7 +201,8 @@ const Testimonies = () => {
                   <button
                     onClick={() => {
                       setSearchQuery("");
-                      setSelectedCategory("");
+                      setSelectedCategory("All");
+                      setCategorySlug("");
                       setCurrentPage(1);
                     }}
                     className="mt-4 text-primary hover:underline"
