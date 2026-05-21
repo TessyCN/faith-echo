@@ -39,6 +39,7 @@ import {
   useUpdateTestimonyStatus,
   useUpdateTestimony,
 } from "@/services/testimonies.service";
+import axios from "axios";
 
 /* ─── Types ─── */
 
@@ -109,6 +110,7 @@ export interface AdaptedTestimony {
   createdAt: Date;
   status: "pending" | "approved" | "rejected";
   rejectionNote?: string;
+  isFeatured?: boolean;
 }
 
 /* ─── Constants ─── */
@@ -201,7 +203,7 @@ const AdminDashboard = () => {
 
   // Edit form
   const [editMode, setEditMode] = useState(false);
-  const [editForm, setEditForm] = useState({ title: "", categoryId: 0, categoryName: "", fullStory: "" });
+  const [editForm, setEditForm] = useState({ title: "", categoryId: 0, categoryName: "", fullStory: "", isFeatured: false, status: "PENDING" as "PENDING" | "APPROVED" | "REJECTED" });
 
   // Convert backend data to frontend format
   const adaptTestimony = (backendTestimony: BackendTestimony): AdaptedTestimony => {
@@ -227,6 +229,7 @@ const AdminDashboard = () => {
       createdAt: new Date(backendTestimony.createdAt),
       status: status,
       rejectionNote: backendTestimony.rejectionNote,
+      isFeatured: backendTestimony.isFeatured,
     };
   };
 
@@ -268,7 +271,6 @@ const AdminDashboard = () => {
     return [...pendingTestimonies, ...approvedTestimonies, ...rejectedTestimonies];
   }, [pendingTestimonies, approvedTestimonies, rejectedTestimonies]);
 
-  console.log("Dashboard stats: ", statsData);
   const categoryBreakdown = useMemo(() =>
     categories.map((cat) => ({
       name: cat.name,
@@ -360,10 +362,12 @@ const AdminDashboard = () => {
         id: parseInt(id),
         title: editForm.title,
         content: editForm.fullStory,
-        categoryId: editForm.categoryId
+        categoryId: editForm.categoryId,
+        status: editForm.status,
+        isFeatured: editForm.isFeatured
       });
 
-      addAuditEntry(id, editForm.title, "Edited", `Updated title, category, or content`);
+      addAuditEntry(id, editForm.title, "Edited", `Updated title, category, content, status, and featured status`);
 
       toast({
         title: "Testimony Updated",
@@ -389,13 +393,24 @@ const AdminDashboard = () => {
       await refetchRejected();
 
     } catch (error) {
-      console.error("Error updating testimony:", error);
-      toast({
-        title: "Error",
-        description: "Failed to update testimony. Please try again.",
-        variant: "destructive",
-      });
+  let message = "Failed to update testimony";
+
+  if (axios.isAxiosError(error)) {
+    const apiMessage = error.response?.data?.message;
+
+    if (Array.isArray(apiMessage)) {
+      message = apiMessage.join(", ");
+    } else if (typeof apiMessage === "string") {
+      message = apiMessage;
     }
+  }
+
+  toast({
+    title: "Error",
+    description: message,
+    variant: "destructive",
+  });
+}
   };
 
   // Category management functions
@@ -501,7 +516,9 @@ const AdminDashboard = () => {
       title: t.title,
       categoryId: t.categoryId,
       categoryName: t.category,
-      fullStory: t.fullStory
+      fullStory: t.fullStory,
+      isFeatured: false,
+      status: t.status === "approved" ? "APPROVED" : t.status === "rejected" ? "REJECTED" : "PENDING"
     });
     setEditMode(true);
   };
@@ -531,6 +548,9 @@ const AdminDashboard = () => {
             <Badge variant="outline" className={`text-xs flex-shrink-0 ${getCategoryColor(t.category)}`}>
               {t.category}
             </Badge>
+            {t.isFeatured && (
+              <Badge className="text-xs flex-shrink-0 bg-healing text-white">Featured</Badge>
+            )}
           </div>
           <p className="text-sm text-muted-foreground line-clamp-1">{t.snippet}</p>
           <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
@@ -663,6 +683,34 @@ const AdminDashboard = () => {
               </Select>
             </div>
             <div>
+              <label className="text-sm font-medium text-foreground">Status</label>
+              <Select
+                value={editForm.status}
+                onValueChange={(v) => setEditForm((f) => ({ ...f, status: v as "PENDING" | "APPROVED" | "REJECTED" }))}
+              >
+                <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="PENDING">Pending</SelectItem>
+                  <SelectItem value="APPROVED">Approved</SelectItem>
+                  <SelectItem value="REJECTED">Rejected</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center gap-2 p-3 bg-muted/50 rounded-lg border border-border">
+              <Input
+                type="checkbox"
+                checked={editForm.isFeatured}
+                onChange={(e) => setEditForm((f) => ({ ...f, isFeatured: e.target.checked }))}
+                className="h-4 w-4 cursor-pointer"
+              />
+              <label className="text-sm font-medium text-foreground cursor-pointer flex-1">
+                Feature this testimony
+              </label>
+              {editForm.isFeatured && (
+                <Badge className="bg-healing text-white">Featured</Badge>
+              )}
+            </div>
+            <div>
               <label className="text-sm font-medium text-foreground">Full Story</label>
               <Textarea
                 value={editForm.fullStory}
@@ -672,16 +720,45 @@ const AdminDashboard = () => {
               />
             </div>
             <div className="flex gap-3">
-              <Button onClick={() => setConfirmDialog({ open: true, type: "edit", testimonyId: t.id })}>Save Changes</Button>
-              <Button variant="outline" onClick={() => setEditMode(false)}>Cancel</Button>
+              <Button 
+                onClick={() => setConfirmDialog({ open: true, type: "edit", testimonyId: t.id })}
+                disabled={updateTestimonyMutation.isPending}
+                className="relative"
+              >
+                {updateTestimonyMutation.isPending ? (
+                  <div className="flex items-center gap-2">
+                    <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                    </svg>
+                    <span>Saving</span>
+                  </div>
+                ) : (
+                  <>
+                    <Save className="h-4 w-4 mr-2" /> Save Changes
+                  </>
+                )}
+              </Button>
+              <Button 
+                variant="outline" 
+                onClick={() => setEditMode(false)}
+                disabled={updateTestimonyMutation.isPending}
+              >
+                Cancel
+              </Button>
             </div>
           </div>
         ) : (
           <>
             <div>
-              <Badge variant="outline" className={`mb-3 ${getCategoryColor(t.category)}`}>
-                {t.category}
-              </Badge>
+              <div className="flex items-center gap-2 mb-3">
+                <Badge variant="outline" className={`${getCategoryColor(t.category)}`}>
+                  {t.category}
+                </Badge>
+                {t.isFeatured && (
+                  <Badge className="bg-healing text-white">Featured</Badge>
+                )}
+              </div>
               <h2 className="text-2xl md:text-3xl font-bold text-foreground">{t.title}</h2>
             </div>
 
@@ -724,6 +801,14 @@ const AdminDashboard = () => {
                     <Edit3 className="h-4 w-4" /> Edit
                   </Button>
                 </div>
+              </div>
+            )}
+
+            {(t.status === "approved" || t.status === "rejected") && (
+              <div className="border-t border-border pt-6">
+                <Button variant="outline" onClick={() => startEdit(t)} className="gap-2">
+                  <Edit3 className="h-4 w-4" /> Edit Testimony
+                </Button>
               </div>
             )}
           </>
@@ -1099,7 +1184,17 @@ const AdminDashboard = () => {
             <AlertDialogDescription>
               {confirmDialog.type === "approve" && `"${confirmTarget?.title}" will be published to the public archive.`}
               {confirmDialog.type === "reject" && `"${confirmTarget?.title}" will be marked as rejected.${rejectionNote ? ` Note: "${rejectionNote}"` : ""}`}
-              {confirmDialog.type === "edit" && `Your edits to "${confirmTarget?.title}" will be saved.`}
+              {confirmDialog.type === "edit" && (
+                <div className="space-y-2">
+                  <p>Your edits to "{confirmTarget?.title}" will be saved with:</p>
+                  <ul className="text-xs space-y-1 ml-4 mt-2">
+                    <li>• <strong>Title:</strong> {editForm.title}</li>
+                    <li>• <strong>Category:</strong> {editForm.categoryName}</li>
+                    <li>• <strong>Status:</strong> {editForm.status}</li>
+                    <li>• <strong>Featured:</strong> {editForm.isFeatured ? "Yes" : "No"}</li>
+                  </ul>
+                </div>
+              )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -1110,9 +1205,20 @@ const AdminDashboard = () => {
                 else if (confirmDialog.type === "reject") handleAction(confirmDialog.testimonyId, "reject");
                 else handleEdit(confirmDialog.testimonyId);
               }}
+              disabled={confirmDialog.type === "edit" && updateTestimonyMutation.isPending}
               className={confirmDialog.type === "reject" ? "bg-destructive text-destructive-foreground hover:bg-destructive/90" : ""}
             >
-              {confirmDialog.type === "approve" ? "Approve" : confirmDialog.type === "reject" ? "Reject" : "Save"}
+              {confirmDialog.type === "approve" && "Approve"}
+              {confirmDialog.type === "reject" && "Reject"}
+              {confirmDialog.type === "edit" && (updateTestimonyMutation.isPending ? (
+                <div className="flex items-center gap-2">
+                  <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                  </svg>
+                  Saving
+                </div>
+              ) : "Save")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

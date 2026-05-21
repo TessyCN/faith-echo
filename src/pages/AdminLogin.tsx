@@ -6,7 +6,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAdminAuth } from "@/contexts/AdminAuthContext";
 import { useToast } from "@/hooks/use-toast";
-import { useLoginAdmin } from "@/services/auth.service";
 
 const AdminLogin = () => {
   const navigate = useNavigate();

@@ -69,9 +69,9 @@ export const updateTestimonyStatus = async (id: number, data: { status: string, 
     return response.data;
 };
 
-export const updateTestimony = async (id: number, data: { title: string, content: string, categoryId: number }) => {
+export const updateTestimony = async (id: number, data: { title: string, content: string, categoryId: number, status?: string, isFeatured?: boolean }) => {
     const response = await api.patch(`${API_URL}/testimonies/${id}`, data);
-    return response.data;
+    return response;
 };
 
 export const createcategory = async (category: TestimonyCategory) => {
@@ -192,11 +192,13 @@ export const useUpdateTestimonyStatus = () => {
 export const useUpdateTestimony = () => {
     const queryClient = useQueryClient();
     return useMutation({
-        mutationFn: (data: { id: number, title: string, content: string, categoryId: number }) => updateTestimony(data.id, { title: data.title, content: data.content, categoryId: data.categoryId }),
+        mutationFn: (data: { id: number, title: string, content: string, categoryId: number, status?: string, isFeatured?: boolean }) => 
+            updateTestimony(data.id, { title: data.title, content: data.content, categoryId: data.categoryId, status: data.status, isFeatured: data.isFeatured }),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["pendingTestimonies"] });
             queryClient.invalidateQueries({ queryKey: ["approvedTestimonies"] });
             queryClient.invalidateQueries({ queryKey: ["rejectedTestimonies"] });
+            queryClient.invalidateQueries({ queryKey: ["dashboardStats"] });
         },
     });
 };
