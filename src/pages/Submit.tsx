@@ -252,11 +252,11 @@ const Submit = () => {
                   value={formData.content}
                   onChange={(e) => setFormData((prev) => ({ ...prev, content: e.target.value }))}
                   className="min-h-[200px] resize-y"
-                  maxLength={5000}
+                  maxLength={20000}
                   required
                 />
                 <p className="text-xs text-muted-foreground text-right">
-                  {formData.content.length}/5000 characters
+                  {formData.content.length}/20000 characters
                 </p>
               </div>
 

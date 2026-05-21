@@ -4,10 +4,11 @@ import {
   LayoutDashboard, Clock, CheckCircle2, XCircle, BarChart3, LogOut,
   Menu, X, Image, Video, Music, FileText, ChevronRight, Church,
   ClipboardList, Edit3, TrendingUp, TrendingDown, Minus, Plus,
-  Trash2, Save, X as XIcon, FolderPlus, Edit2,
+  Trash2, Save, X as XIcon, FolderPlus, Edit2, Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -573,11 +574,57 @@ const AdminDashboard = () => {
     );
   };
 
+  const renderTestimonyRowSkeleton = (key: number, showActions = false) => {
+    return (
+      <div key={key} className="flex flex-col sm:flex-row sm:items-center gap-3 p-4 border border-border rounded-lg bg-card">
+        <div className="flex-1 min-w-0 space-y-2">
+          <div className="flex items-center gap-2">
+            <Skeleton className="h-5 w-48 animate-pulse" />
+            <Skeleton className="h-5 w-16 rounded-full animate-pulse" />
+          </div>
+          <Skeleton className="h-4 w-full max-w-md animate-pulse" />
+          <div className="flex items-center gap-3">
+            <Skeleton className="h-3 w-24 animate-pulse" />
+            <Skeleton className="h-3 w-16 animate-pulse" />
+            <Skeleton className="h-3 w-16 animate-pulse" />
+          </div>
+        </div>
+        {showActions && (
+          <div className="flex gap-2 flex-shrink-0 mt-3 sm:mt-0">
+            <Skeleton className="h-9 w-20 rounded-md animate-pulse" />
+            <Skeleton className="h-9 w-20 rounded-md animate-pulse" />
+            <Skeleton className="h-9 w-9 rounded-md animate-pulse" />
+          </div>
+        )}
+        <ChevronRight className="h-4 w-4 text-muted-foreground/30 flex-shrink-0 hidden sm:block" />
+      </div>
+    );
+  };
+
   const renderQueue = (status: "pending" | "approved" | "rejected", emptyMessage: string) => {
     let items: AdaptedTestimony[] = [];
-    if (status === "pending") items = pendingTestimonies;
-    if (status === "approved") items = approvedTestimonies;
-    if (status === "rejected") items = rejectedTestimonies;
+    let isLoading = false;
+
+    if (status === "pending") {
+      items = pendingTestimonies;
+      isLoading = isLoadingPending;
+    } else if (status === "approved") {
+      items = approvedTestimonies;
+      isLoading = isLoadingApproved;
+    } else if (status === "rejected") {
+      items = rejectedTestimonies;
+      isLoading = isLoadingRejected;
+    }
+
+    if (isLoading) {
+      return (
+        <div className="space-y-3">
+          {Array.from({ length: 3 }).map((_, index) =>
+            renderTestimonyRowSkeleton(index, status === "pending")
+          )}
+        </div>
+      );
+    }
 
     if (items.length === 0) return <p className="text-muted-foreground text-center py-12">{emptyMessage}</p>;
     return <div className="space-y-3">{items.map(renderTestimonyRow)}</div>;
@@ -592,50 +639,73 @@ const AdminDashboard = () => {
         </Button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {categories.map((category) => (
-          <div key={category.id} className="bg-card border border-border rounded-lg p-4 shadow-[var(--card-shadow)]">
-            <div className="flex items-start justify-between mb-3">
-              <div>
-                <Badge className="mb-2" style={{ backgroundColor: getChartColor(category.name, category.id) }}>
-                  {category.name}
-                </Badge>
-                <h3 className="font-semibold text-foreground">{category.name}</h3>
+      {isLoadingCategories ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {Array.from({ length: 6 }).map((_, index) => (
+            <div key={index} className="bg-card border border-border rounded-lg p-4 shadow-[var(--card-shadow)] space-y-4">
+              <div className="flex items-start justify-between">
+                <div className="space-y-2 flex-1 mr-4">
+                  <Skeleton className="h-5 w-20 rounded-full animate-pulse" />
+                  <Skeleton className="h-5 w-32 animate-pulse" />
+                </div>
+                <div className="flex gap-2">
+                  <Skeleton className="h-8 w-8 rounded-full animate-pulse" />
+                  <Skeleton className="h-8 w-8 rounded-full animate-pulse" />
+                </div>
               </div>
-              <div className="flex gap-2">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => openEditCategoryDialog(category)}
-                  className="h-8 w-8 p-0"
-                >
-                  <Edit2 className="h-4 w-4" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setDeleteCategoryDialog({ open: true, category })}
-                  className="h-8 w-8 p-0 text-destructive hover:text-destructive"
-                  disabled={(category._count?.testimonies || 0) > 0}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
+              <Skeleton className="h-4 w-full animate-pulse" />
+              <div className="space-y-2 border-t border-border pt-3 mt-2">
+                <Skeleton className="h-3 w-28 animate-pulse" />
+                <Skeleton className="h-3 w-24 animate-pulse" />
+                <Skeleton className="h-3 w-36 animate-pulse" />
               </div>
             </div>
-            {category.description && (
-              <p className="text-sm text-muted-foreground mb-3">{category.description}</p>
-            )}
-            <div className="text-xs text-muted-foreground border-t border-border pt-3 mt-2">
-              <p>Slug: {category.slug}</p>
-              <p>Testimonies: {category._count?.testimonies || 0}</p>
-              <p>Created: {format(new Date(category.createdAt), "MMM d, yyyy")}</p>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {categories.length === 0 && (
+          ))}
+        </div>
+      ) : categories.length === 0 ? (
         <p className="text-muted-foreground text-center py-12">No categories found. Create your first category!</p>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {categories.map((category) => (
+            <div key={category.id} className="bg-card border border-border rounded-lg p-4 shadow-[var(--card-shadow)]">
+              <div className="flex items-start justify-between mb-3">
+                <div>
+                  <Badge className="mb-2" style={{ backgroundColor: getChartColor(category.name, category.id) }}>
+                    {category.name}
+                  </Badge>
+                  <h3 className="font-semibold text-foreground">{category.name}</h3>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => openEditCategoryDialog(category)}
+                    className="h-8 w-8 p-0"
+                  >
+                    <Edit2 className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setDeleteCategoryDialog({ open: true, category })}
+                    className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                    disabled={(category._count?.testimonies || 0) > 0}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+              {category.description && (
+                <p className="text-sm text-muted-foreground mb-3">{category.description}</p>
+              )}
+              <div className="text-xs text-muted-foreground border-t border-border pt-3 mt-2">
+                <p>Slug: {category.slug}</p>
+                <p>Testimonies: {category._count?.testimonies || 0}</p>
+                <p>Created: {format(new Date(category.createdAt), "MMM d, yyyy")}</p>
+              </div>
+            </div>
+          ))}
+        </div>
       )}
     </div>
   );
@@ -717,7 +787,11 @@ const AdminDashboard = () => {
                 onChange={(e) => setEditForm((f) => ({ ...f, fullStory: e.target.value }))}
                 rows={8}
                 className="mt-1"
+                maxLength={20000}
               />
+              <p className="text-xs text-muted-foreground text-right mt-1">
+                {editForm.fullStory.length}/20000 characters
+              </p>
             </div>
             <div className="flex gap-3">
               <Button 
@@ -888,25 +962,41 @@ const AdminDashboard = () => {
               <stat.icon className={`h-4 w-4 ${stat.color}`} />
               <span className="text-sm text-muted-foreground">{stat.label}</span>
             </div>
-            <p className="text-2xl font-bold text-foreground">{stat.value}</p>
+            {isLoadingStats ? (
+              <div className="h-8 flex items-center">
+                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+              </div>
+            ) : (
+              <p className="text-2xl font-bold text-foreground">{stat.value}</p>
+            )}
           </div>
         ))}
       </div>
 
-      <div className="bg-card border border-border rounded-lg p-4 shadow-[var(--card-shadow)] flex items-center gap-3">
-        {dashboardStats.data?.submitionsThisWeek > 0 ? <TrendingUp className="h-5 w-5 text-healing" /> : <TrendingDown className="h-5 w-5 text-destructive" />}
-        <div>
-          <p className="text-sm text-muted-foreground">This week's submissions</p>
-          <p className="font-semibold text-foreground">
-            {dashboardStats.data?.submitionsThisWeek || 0} submissions
-            {dashboardStats.data?.submitionsThisWeek !== undefined && dashboardStats.data?.submitionsThisWeek !== 0 &&
-              <span className={dashboardStats.data?.submitionsThisWeek > 0 ? "text-healing" : "text-destructive"}>
-                ({dashboardStats.data?.submitionsThisWeek > 0 ? "+" : ""}{dashboardStats.data?.submitionsThisWeek} vs last week)
-              </span>
-            }
-          </p>
+      {isLoadingStats ? (
+        <div className="bg-card border border-border rounded-lg p-4 shadow-[var(--card-shadow)] flex items-center gap-3">
+          <Skeleton className="h-5 w-5 rounded-full animate-pulse" />
+          <div className="space-y-2 flex-1">
+            <Skeleton className="h-4 w-40 animate-pulse" />
+            <Skeleton className="h-5 w-60 animate-pulse" />
+          </div>
         </div>
-      </div>
+      ) : (
+        <div className="bg-card border border-border rounded-lg p-4 shadow-[var(--card-shadow)] flex items-center gap-3">
+          {dashboardStats.data?.submitionsThisWeek > 0 ? <TrendingUp className="h-5 w-5 text-healing" /> : <TrendingDown className="h-5 w-5 text-destructive" />}
+          <div>
+            <p className="text-sm text-muted-foreground">This week's submissions</p>
+            <p className="font-semibold text-foreground">
+              {dashboardStats.data?.submitionsThisWeek || 0} submissions
+              {dashboardStats.data?.submitionsThisWeek !== undefined && dashboardStats.data?.submitionsThisWeek !== 0 &&
+                <span className={dashboardStats.data?.submitionsThisWeek > 0 ? "text-healing" : "text-destructive"}>
+                  ({dashboardStats.data?.submitionsThisWeek > 0 ? "+" : ""}{dashboardStats.data?.submitionsThisWeek} vs last week)
+                </span>
+              }
+            </p>
+          </div>
+        </div>
+      )}
 
       <div>
         <div className="flex items-center justify-between mb-4">
@@ -930,24 +1020,49 @@ const AdminDashboard = () => {
         ].map((item) => (
           <div key={item.label} className="bg-card border border-border rounded-lg p-5 shadow-[var(--card-shadow)]">
             <p className="text-sm text-muted-foreground mb-1">{item.label}</p>
-            <p className="text-3xl font-bold text-foreground mb-3">{item.value}</p>
+            {isLoadingStats ? (
+              <div className="h-9 flex items-center mb-3">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : (
+              <p className="text-3xl font-bold text-foreground mb-3">{item.value}</p>
+            )}
             <div className="w-full bg-muted rounded-full h-2">
-              <div className={`${item.color} h-2 rounded-full transition-all`} style={{ width: `${item.pct}%` }} />
+              <div className={`${item.color} h-2 rounded-full transition-all`} style={{ width: `${isLoadingStats ? 0 : item.pct}%` }} />
             </div>
-            <p className="text-xs text-muted-foreground mt-1">{item.pct}% of total</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              {isLoadingStats ? "Loading..." : `${item.pct}% of total`}
+            </p>
           </div>
         ))}
       </div>
 
-      <div className="bg-card border border-border rounded-lg p-5 shadow-[var(--card-shadow)] flex items-center gap-3">
-        {weeklyTrend.trend === "up" ? <TrendingUp className="h-5 w-5 text-healing" /> : weeklyTrend.trend === "down" ? <TrendingDown className="h-5 w-5 text-destructive" /> : <Minus className="h-5 w-5 text-muted-foreground" />}
-        <div>
-          <p className="text-sm text-muted-foreground">Submissions this week</p>
-          <p className="text-lg font-bold text-foreground">{weeklyTrend.thisWeek} <span className="text-sm font-normal text-muted-foreground">({weeklyTrend.diff > 0 ? "+" : ""}{weeklyTrend.diff} vs last week)</span></p>
+      {isLoadingPending || isLoadingApproved || isLoadingRejected ? (
+        <div className="bg-card border border-border rounded-lg p-5 shadow-[var(--card-shadow)] flex items-center gap-3">
+          <Skeleton className="h-5 w-5 rounded-full animate-pulse" />
+          <div className="space-y-2 flex-1">
+            <Skeleton className="h-4 w-40 animate-pulse" />
+            <Skeleton className="h-6 w-52 animate-pulse" />
+          </div>
         </div>
-      </div>
+      ) : (
+        <div className="bg-card border border-border rounded-lg p-5 shadow-[var(--card-shadow)] flex items-center gap-3">
+          {weeklyTrend.trend === "up" ? <TrendingUp className="h-5 w-5 text-healing" /> : weeklyTrend.trend === "down" ? <TrendingDown className="h-5 w-5 text-destructive" /> : <Minus className="h-5 w-5 text-muted-foreground" />}
+          <div>
+            <p className="text-sm text-muted-foreground">Submissions this week</p>
+            <p className="text-lg font-bold text-foreground">{weeklyTrend.thisWeek} <span className="text-sm font-normal text-muted-foreground">({weeklyTrend.diff > 0 ? "+" : ""}{weeklyTrend.diff} vs last week)</span></p>
+          </div>
+        </div>
+      )}
 
-      {categoryBreakdown.length > 0 && (
+      {isLoadingCategories || isLoadingPending || isLoadingApproved || isLoadingRejected ? (
+        <div className="bg-card border border-border rounded-lg p-5 shadow-[var(--card-shadow)] space-y-4">
+          <Skeleton className="h-6 w-48 animate-pulse" />
+          <div className="h-64 w-full flex items-center justify-center bg-muted/20 rounded-md">
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          </div>
+        </div>
+      ) : categoryBreakdown.length > 0 ? (
         <div className="bg-card border border-border rounded-lg p-5 shadow-[var(--card-shadow)]">
           <h3 className="font-semibold text-foreground mb-4">Submissions by Category</h3>
           <div className="h-64">
@@ -965,9 +1080,16 @@ const AdminDashboard = () => {
             </ResponsiveContainer>
           </div>
         </div>
-      )}
+      ) : null}
 
-      {pieData.length > 0 && (
+      {isLoadingCategories || isLoadingPending || isLoadingApproved || isLoadingRejected ? (
+        <div className="bg-card border border-border rounded-lg p-5 shadow-[var(--card-shadow)] space-y-4">
+          <Skeleton className="h-6 w-48 animate-pulse" />
+          <div className="h-64 w-full flex items-center justify-center bg-muted/20 rounded-md">
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          </div>
+        </div>
+      ) : pieData.length > 0 ? (
         <div className="bg-card border border-border rounded-lg p-5 shadow-[var(--card-shadow)]">
           <h3 className="font-semibold text-foreground mb-4">Category Distribution</h3>
           <div className="h-64">
@@ -981,13 +1103,17 @@ const AdminDashboard = () => {
             </ResponsiveContainer>
           </div>
         </div>
-      )}
+      ) : null}
 
       <div className="bg-card border border-border rounded-lg p-5 shadow-[var(--card-shadow)]">
         <p className="text-sm text-muted-foreground mb-1">Total Views (Approved)</p>
-        <p className="text-3xl font-bold text-foreground">
-          {approvedTestimonies.reduce((sum, t) => sum + t.views, 0).toLocaleString()}
-        </p>
+        {isLoadingApproved ? (
+          <Skeleton className="h-8 w-28 mt-1 animate-pulse" />
+        ) : (
+          <p className="text-3xl font-bold text-foreground">
+            {approvedTestimonies.reduce((sum, t) => sum + t.views, 0).toLocaleString()}
+          </p>
+        )}
       </div>
     </div>
   );
